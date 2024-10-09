@@ -1,0 +1,39 @@
+
+---
+
+## **17. `docs/UserGuide.md`**
+
+```markdown
+# Fairmandering User Guide
+
+## Table of Contents
+
+- [Introduction](#introduction)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running the System](#running-the-system)
+  - [Command-Line Interface](#command-line-interface)
+  - [Web Interface](#web-interface)
+- [Advanced Usage](#advanced-usage)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [Support](#support)
+
+## Introduction
+
+Fairmandering is a redistricting system that combines data processing, optimization algorithms, and analysis tools to create fair districting plans.
+
+## Installation
+
+### Prerequisites
+
+- Python 3.7 or higher
+- Redis server (for caching)
+
+### Steps
+
+1. **Clone the Repository**
+
+   ```bash
+   git clone https://github.com/yourusername/fairmandering.git
+   cd fairmandering
