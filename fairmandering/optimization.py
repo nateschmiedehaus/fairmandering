@@ -3,19 +3,15 @@
 import numpy as np
 from pymoo.core.problem import Problem
 from pymoo.algorithms.moo.nsga3 import NSGA3
-from pymoo.factory import get_reference_directions, get_mutation, get_sampling, get_crossover
+from pymoo.util.ref_dirs import get_reference_directions
+from pymoo.operators.mutation import PolynomialMutation
+from pymoo.operators.sampling import IntegerRandomSampling
+from pymoo.operators.crossover import SBX
 from pymoo.optimize import minimize
 import logging
 from .config import Config
 from sklearn.neighbors import kneighbors_graph
 from joblib import Parallel, delayed
-from pymoo.core.sampling import Sampling
-from pymoo.core.crossover import Crossover
-from pymoo.core.mutation import Mutation
-from pymoo.core.survival import Survival
-from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
-from pymoo.util.dominator import Dominator
-from pymoo.util.misc import random_permuations
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +84,7 @@ class RedistrictingProblem(Problem):
         g[0] = self.contiguity_constraint(assignment)
 
         return f, g
+
 
     def population_equality(self, assignment):
         """
@@ -248,9 +245,9 @@ def optimize_districting(data, seeds=[1, 2, 3, 4, 5]):
         logger.info(f"Optimization run with seed {seed}.")
         problem = RedistrictingProblem(data, Config.NUM_DISTRICTS)
         ref_dirs = get_reference_directions("das-dennis", problem.n_obj, n_partitions=12)
-        mutation = get_mutation("int_pm", prob=Config.STOCHASTIC_MUTATION_PROB)
-        crossover = get_crossover("int_sbx", prob=0.9)
-        sampling = get_sampling("int_random")
+        mutation = PolynomialMutation(prob=Config.STOCHASTIC_MUTATION_PROB, eta=20)
+        crossover = SBX(prob=0.9, eta=15)
+        sampling = IntegerRandomSampling()
 
         algorithm = NSGA3(
             pop_size=Config.NSGA3_POPULATION_SIZE,
