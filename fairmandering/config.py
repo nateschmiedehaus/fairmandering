@@ -1,8 +1,7 @@
-# fairmandering/config.py
-
 import os
 from dotenv import load_dotenv
 import logging
+from census import Census
 
 load_dotenv()
 
@@ -22,10 +21,12 @@ class Config:
     HUD_API_KEY = os.getenv('HUD_API_KEY')
     EPA_API_KEY = os.getenv('EPA_API_KEY')
 
+    # Census object initialization
+    CENSUS = Census(CENSUS_API_KEY)
+
     # Optimization parameters
     NSGA3_POPULATION_SIZE = int(os.getenv('NSGA3_POPULATION_SIZE', '200'))
     NSGA3_GENERATIONS = int(os.getenv('NSGA3_GENERATIONS', '150'))
-    NUM_DISTRICTS = int(os.getenv('NUM_DISTRICTS', '10'))
     STOCHASTIC_MUTATION_PROB = float(os.getenv('STOCHASTIC_MUTATION_PROB', '0.1'))
 
     # Adaptive weighting for objectives
@@ -44,6 +45,18 @@ class Config:
     # State configuration
     STATE_FIPS = os.getenv('STATE_FIPS', '06')  # Default to California
     STATE_NAME = os.getenv('STATE_NAME', 'California')
+
+    @classmethod
+    def get_num_districts(cls, state_fips):
+        """
+        Gets the number of legally required districts for a given state using Census data.
+        """
+        try:
+            response = cls.CENSUS.acs5.get(('NAME', 'B01001_001E'), {'for': f'state:{state_fips}'})
+            # Example logic; replace with actual logic or API to determine the number of districts
+            return len(response)  # Placeholder: Replace with real logic for number of districts
+        except Exception as e:
+            raise ValueError(f"Error retrieving district data: {e}")
 
     # Paths
     SHAPEFILE_PATH = os.getenv(
@@ -92,8 +105,6 @@ class Config:
             raise ValueError("NSGA3_POPULATION_SIZE must be a positive integer.")
         if cls.NSGA3_GENERATIONS <= 0:
             raise ValueError("NSGA3_GENERATIONS must be a positive integer.")
-        if cls.NUM_DISTRICTS <= 0:
-            raise ValueError("NUM_DISTRICTS must be a positive integer.")
         if not (0 <= cls.STOCHASTIC_MUTATION_PROB <= 1):
             raise ValueError("STOCHASTIC_MUTATION_PROB must be between 0 and 1.")
 
