@@ -4,73 +4,68 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redistricting Results - Fairmandering</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
 </head>
-<body>
-    <div class="container">
-        <h1 class="text-center mt-5 display-4 animate__animated animate__fadeInDown">Redistricting Results</h1>
-        <hr class="mb-5">
+<body class="bg-gray-100">
+    <div class="container mx-auto py-10">
+        <h1 class="text-4xl font-bold text-center text-gray-800">Redistricting Results</h1>
+        <div class="grid grid-cols-2 gap-6 mt-10">
+            <div class="col-span-2">
+                <h2 class="text-2xl font-semibold">Interactive Tableau Visualization</h2>
+                <iframe src="https://public.tableau.com/views/YourDashboardLink" class="w-full h-96 border rounded-lg"></iframe>
+            </div>
+            
+            <div>
+                <h2 class="text-2xl font-semibold">Fairness Metrics</h2>
+                <div id="fairnessMetricsChart" class="h-64 w-full"></div>
+            </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }} animate__animated animate__fadeIn" role="alert">
-                {{ message }}
-              </div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
+            <div>
+                <h2 class="text-2xl font-semibold">Population Distribution</h2>
+                <div id="populationDistributionChart" class="h-64 w-full"></div>
+            </div>
 
-        <!-- Fairness Metrics Section -->
-        <div class="section animate__animated animate__fadeIn">
-            <h2>Fairness Metrics</h2>
-            <iframe src="{{ url_for('static', filename='fairness_metrics.html') }}" class="iframe-custom"></iframe>
+            <div class="col-span-2">
+                <h2 class="text-2xl font-semibold">Interactive District Map</h2>
+                <iframe src="{{ url_for('static', filename='district_map.html') }}" class="w-full h-96 border rounded-lg"></iframe>
+            </div>
+
+            <div class="col-span-2">
+                <h2 class="text-2xl font-semibold">Explainable Report</h2>
+                <iframe src="{{ url_for('static', filename='redistricting_report.html') }}" class="w-full h-96 border rounded-lg"></iframe>
+            </div>
         </div>
-
-        <!-- Additional Sections with Fade In Animation -->
-        <div class="section animate__animated animate__fadeIn">
-            <h2>Population Distribution Across Districts</h2>
-            <iframe src="{{ url_for('static', filename='district_populations.html') }}" class="iframe-custom"></iframe>
-        </div>
-
-        <div class="section animate__animated animate__fadeIn">
-            <h2>Median Income Distribution Across Districts</h2>
-            <iframe src="{{ url_for('static', filename='median_income_distribution.html') }}" class="iframe-custom"></iframe>
-        </div>
-
-        <div class="section animate__animated animate__fadeIn">
-            <h2>Population Trends by District</h2>
-            <iframe src="{{ url_for('static', filename='population_trends.html') }}" class="iframe-custom"></iframe>
-        </div>
-
-        <div class="section animate__animated animate__fadeIn">
-            <h2>Comparative Analysis of Redistricting Plans</h2>
-            <iframe src="{{ url_for('static', filename='comparative_analysis.html') }}" class="iframe-custom"></iframe>
-        </div>
-
-        <div class="section animate__animated animate__fadeIn">
-            <h2>Interactive District Map</h2>
-            <iframe src="{{ url_for('static', filename='district_map.html') }}" class="iframe-custom"></iframe>
-        </div>
-
-        <div class="section animate__animated animate__fadeIn">
-            <h2>Explainable Report</h2>
-            <iframe src="{{ url_for('static', filename='redistricting_report.html') }}" class="iframe-custom"></iframe>
-        </div>
-
-        <div class="section text-center mt-5 animate__animated animate__fadeInUp">
+        <div class="text-center mt-10">
             <a href="{{ url_for('home') }}" class="btn btn-secondary btn-custom">Run Again</a>
             <a href="{{ url_for('download_file', filename='redistricting_report.html') }}" class="btn btn-info btn-custom">Download Report</a>
             <a href="{{ url_for('download_file', filename='comparative_analysis.html') }}" class="btn btn-info btn-custom">Download Comparative Analysis</a>
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Embedding D3.js and Plotly scripts -->
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="{{ url_for('static', filename='js/custom.js') }}"></script>
+    <script>
+        // Initialize Fairness Metrics Chart with Plotly
+        var fairnessMetricsData = {
+            x: ['Population Equality', 'Minority Representation', 'Political Fairness'],
+            y: [0.9, 0.8, 0.75],
+            type: 'bar'
+        };
+        Plotly.newPlot('fairnessMetricsChart', [fairnessMetricsData]);
+
+        // Initialize Population Distribution Chart with D3.js
+        d3.select('#populationDistributionChart')
+            .append('svg')
+            .attr('width', '100%')
+            .attr('height', '100%')
+            .append('rect')
+            .attr('width', 100)
+            .attr('height', 50)
+            .attr('fill', 'blue');
+    </script>
 </body>
 </html>
