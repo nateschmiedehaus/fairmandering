@@ -24,3 +24,10 @@ Fairmandering is a comprehensive redistricting system designed to create fair an
 ```bash
 pip install -r requirements.txt
 python setup.py install
+
+## Usage
+
+```bash
+python main.py
+
+– ** Access the app at http://127.0.0.1:5000
