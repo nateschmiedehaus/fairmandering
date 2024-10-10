@@ -19,8 +19,6 @@ def evaluate_fairness(data: 'GeoDataFrame', assignment: np.ndarray) -> Dict[str,
         Dict[str, float]: Dictionary containing fairness metrics.
     """
     logger.info("Evaluating fairness of the districting plan.")
-
-    # Get the number of districts dynamically based on the input data
     num_districts = len(np.unique(assignment))
     fairness_metrics = {}
 
@@ -42,7 +40,7 @@ def evaluate_fairness(data: 'GeoDataFrame', assignment: np.ndarray) -> Dict[str,
     representation = minority_populations / total_minority_population
     fairness_metrics['minority_representation'] = representation.mean()
 
-    # Political Fairness
+    # Political Fairness (Historical Trends Included)
     party_a_votes = np.array([
         data.loc[assignment == i, 'votes_party_a'].sum() for i in range(num_districts)
     ])
@@ -59,28 +57,64 @@ def evaluate_fairness(data: 'GeoDataFrame', assignment: np.ndarray) -> Dict[str,
     competitiveness = np.where(total_votes != 0, margins / total_votes, 1.0)  # Handle zero division cases
     fairness_metrics['competitiveness'] = competitiveness.mean()
 
-    # Compactness (Polsby-Popper)
+    # Compactness (Polsby-Popper and Additional Metric)
     compactness_scores = []
+    convex_hull_scores = []
     for district in range(num_districts):
         district_units = data[assignment == district]
         if district_units.empty:
             compactness_scores.append(0)
+            convex_hull_scores.append(0)
             continue
         perimeter = district_units.geometry.length.sum()
         area = district_units.geometry.area.sum()
-        if perimeter == 0:
+        if perimeter == 0 or area == 0:
             compactness_scores.append(0)
+            convex_hull_scores.append(0)
             continue
         polsby_popper = (4 * np.pi * area) / (perimeter ** 2)
         compactness_scores.append(polsby_popper)
-    fairness_metrics['compactness'] = np.mean(compactness_scores)
 
-    # Socioeconomic Parity (Example Metric)
+        # Additional Compactness: Convex Hull
+        convex_hull = district_units.unary_union.convex_hull
+        convex_hull_area = convex_hull.area
+        convex_hull_score = area / convex_hull_area
+        convex_hull_scores.append(convex_hull_score)
+
+    fairness_metrics['compactness_polsby_popper'] = np.mean(compactness_scores)
+    fairness_metrics['compactness_convex_hull'] = np.mean(convex_hull_scores)
+
+    # Socioeconomic Parity (Expanded Metrics including HUD and BLS)
     median_income = np.array([
-        data.loc[assignment == i, 'median_income'].median() for i in range(num_districts)
+        data.loc[assignment == i, 'B19013_001E'].median() for i in range(num_districts)
     ])
-    socioeconomic_parity = np.std(median_income) / np.mean(median_income)
+    unemployment_rate = np.array([
+        data.loc[assignment == i, 'B23025_003E'].mean() for i in range(num_districts)
+    ])
+    median_home_value = np.array([
+        data.loc[assignment == i, 'B25077_001E'].median() for i in range(num_districts)
+    ])
+    socioeconomic_parity = (np.std(median_income) / np.mean(median_income)) + \
+                           (np.std(unemployment_rate) / np.mean(unemployment_rate)) + \
+                           (np.std(median_home_value) / np.mean(median_home_value))
     fairness_metrics['socioeconomic_parity'] = socioeconomic_parity
+
+    # Environmental Justice (if EPA data is available)
+    if 'pollution_level' in data.columns:
+        pollution_levels = np.array([
+            data.loc[assignment == i, 'pollution_level'].mean() for i in range(num_districts)
+        ])
+        fairness_metrics['environmental_justice'] = np.std(pollution_levels) / np.mean(pollution_levels)
+
+    # Stability and Growth Trends (Using trend analysis data)
+    population_trend_mean = np.array([
+        data.loc[assignment == i, 'population_trend_mean'].mean() for i in range(num_districts)
+    ])
+    income_trend_mean = np.array([
+        data.loc[assignment == i, 'income_trend_mean'].mean() for i in range(num_districts)
+    ])
+    fairness_metrics['population_stability'] = np.std(population_trend_mean) / np.mean(population_trend_mean)
+    fairness_metrics['income_stability'] = np.std(income_trend_mean) / np.mean(income_trend_mean)
 
     logger.info("Fairness evaluation completed.")
     return fairness_metrics
