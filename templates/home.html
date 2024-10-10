@@ -5,31 +5,28 @@
 <head>
     <meta charset="UTF-8">
     <title>Fairmandering - Redistricting System</title>
-    <!-- Tailwind CSS for modern design and responsiveness -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <!-- Additional Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto py-10">
-        <div class="bg-white shadow rounded-lg p-6 max-w-xl mx-auto">
-            <h1 class="text-3xl font-bold text-center text-gray-800">Fairmandering Redistricting System</h1>
-            <p class="text-center text-gray-500">Generate fair and optimized redistricting plans.</p>
-            <form action="{{ url_for('run_redistricting') }}" method="post" class="mt-6">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="container mx-auto p-10">
+        <div class="bg-white shadow-md rounded-lg p-8 max-w-md mx-auto">
+            <h1 class="text-4xl font-bold text-center text-gray-800 mb-4">Fairmandering System</h1>
+            <p class="text-center text-gray-500 mb-6">Generate fair and optimized redistricting plans.</p>
+            <form action="{{ url_for('run_redistricting') }}" method="post">
                 <div class="mb-4">
-                    <label for="state_fips" class="block text-gray-700">State FIPS Code</label>
-                    <input type="text" id="state_fips" name="state_fips" placeholder="Enter State FIPS Code" required
+                    <label for="state_fips" class="block text-gray-700 font-semibold">State FIPS Code</label>
+                    <input type="text" id="state_fips" name="state_fips" placeholder="e.g., 06 for California" required
                            class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
-                    <small class="text-gray-500">Default is California (06).</small>
                 </div>
-                <button type="submit" class="w-full bg-blue-500 text-white rounded-lg py-2 hover:bg-blue-600">Run Redistricting</button>
+                <button type="submit" class="w-full bg-blue-500 text-white rounded-lg py-3 mt-6 hover:bg-blue-600 transition duration-300">Run Redistricting</button>
             </form>
 
             <div class="mt-6">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                   {% if messages %}
                     {% for category, message in messages %}
-                      <div class="bg-{{ category }}-200 border-l-4 border-{{ category }}-600 text-{{ category }}-700 p-4 mb-4">
+                      <div class="bg-{{ category }}-100 text-{{ category }}-700 p-4 rounded-lg mb-4">
                         {{ message }}
                       </div>
                     {% endfor %}
@@ -39,8 +36,7 @@
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
     <script src="{{ url_for('static', filename='js/custom.js') }}"></script>
 </body>
 </html>
