@@ -1,148 +1,144 @@
 # fairmandering/optimization.py
 
 import numpy as np
-from pymoo.core.problem import Problem
 from pymoo.algorithms.moo.nsga3 import NSGA3
-from pymoo.util.ref_dirs import get_reference_directions
-from pymoo.operators.mutation import PolynomialMutation
-from pymoo.operators.sampling import IntegerRandomSampling
-from pymoo.operators.crossover import SBX
+from pymoo.factory import get_reference_directions
 from pymoo.optimize import minimize
+from pymoo.core.problem import Problem
+from pymoo.termination import get_termination
+from typing import Tuple, List
 import logging
+from .fairness_evaluation import evaluate_fairness
 from .config import Config
-from sklearn.neighbors import kneighbors_graph
-from joblib import Parallel, delayed
 
 logger = logging.getLogger(__name__)
 
-class RedistrictingProblem(Problem):
+class DistrictingProblem(Problem):
     """
-    Defines the multi-objective optimization problem for fair redistricting.
+    Defines the optimization problem for redistricting using pymoo's Problem class.
     """
 
-    def __init__(self, data):
-        num_districts = Config.get_dynamic_district_count(data)  # Use dynamic district count method
-        super().__init__(n_var=len(data), n_obj=9, n_constr=1, type_var=int)
-        self.data = data.reset_index(drop=True)
+    def __init__(self, data: 'GeoDataFrame', num_districts: int):
+        """
+        Initializes the DistrictingProblem.
+
+        Args:
+            data (GeoDataFrame): The geospatial data with demographic and other attributes.
+            num_districts (int): The number of districts to create.
+        """
+        self.data = data
         self.num_districts = num_districts
-        self.weights = Config.OBJECTIVE_WEIGHTS
-        self.adjacency_matrix = self.build_adjacency_matrix()
-        self.population = self.data['P001001'].values
-        self.total_population = self.population.sum()
-        self.ideal_population = self.total_population / self.num_districts
-
-    def build_adjacency_matrix(self):
-        """
-        Builds an adjacency matrix based on spatial relationships.
-        """
-        logger.info("Building adjacency matrix.")
-        adjacency = kneighbors_graph(self.data.geometry.apply(lambda geom: geom.centroid.coords[0]).tolist(),
-                                     n_neighbors=8, mode='connectivity', include_self=False)
-        adjacency = adjacency + adjacency.T
-        return adjacency
+        num_units = len(data)
+        super().__init__(n_var=num_units,
+                         n_obj=len(Config.OBJECTIVE_WEIGHTS),
+                         n_constr=0,
+                         xl=0,
+                         xu=num_districts - 1,
+                         type_var=int)
 
     def _evaluate(self, X, out, *args, **kwargs):
         """
-        Evaluates the objective functions and constraints for the population.
+        Evaluates the objective functions for a batch of solutions.
+
+        Args:
+            X (ndarray): Solution matrix where each row represents a solution.
+            out (dict): Dictionary to store the objective function values.
         """
-        n_samples = X.shape[0]
-        F = np.zeros((n_samples, self.n_obj))
-        G = np.zeros((n_samples, self.n_constr))
+        objectives = []
+        for solution in X:
+            assignment = solution.astype(int)
+            fairness_metrics = evaluate_fairness(self.data, assignment)
+            # Objective function: Weighted sum of metrics
+            weighted_metrics = [
+                Config.OBJECTIVE_WEIGHTS['population_equality'] * fairness_metrics.get('population_equality', 0),
+                Config.OBJECTIVE_WEIGHTS['compactness'] * self.calculate_compactness(assignment),
+                Config.OBJECTIVE_WEIGHTS['minority_representation'] * fairness_metrics.get('minority_representation', 0),
+                Config.OBJECTIVE_WEIGHTS['political_fairness'] * fairness_metrics.get('political_fairness', 0),
+                Config.OBJECTIVE_WEIGHTS['competitiveness'] * fairness_metrics.get('competitiveness', 0),
+                # Add other weighted metrics as needed
+            ]
+            objectives.append(weighted_metrics)
+        out["F"] = np.array(objectives)
 
-        if Config.ENABLE_PARALLELIZATION:
-            results = Parallel(n_jobs=Config.NUM_WORKERS)(
-                delayed(self.evaluate_individual)(X[i, :]) for i in range(n_samples)
-            )
-        else:
-            results = [self.evaluate_individual(X[i, :]) for i in range(n_samples)]
-
-        for i, (f_vals, g_vals) in enumerate(results):
-            F[i, :] = f_vals
-            G[i, :] = g_vals
-
-        out["F"] = F
-        out["G"] = G
-
-    def evaluate_individual(self, assignment):
+    def calculate_compactness(self, assignment: np.ndarray) -> float:
         """
-        Evaluates a single individual's objectives and constraints.
+        Calculates the compactness of the districting plan using Polsby-Popper score.
+
+        Args:
+            assignment (np.ndarray): Array assigning each unit to a district.
+
+        Returns:
+            float: Average compactness score across all districts.
         """
-        f = np.zeros(self.n_obj)
-        g = np.zeros(self.n_constr)
+        compactness_scores = []
+        for district in range(self.num_districts):
+            district_units = self.data[assignment == district]
+            if district_units.empty:
+                compactness_scores.append(0)
+                continue
+            perimeter = district_units.geometry.length.sum()
+            area = district_units.geometry.area.sum()
+            if perimeter == 0:
+                compactness_scores.append(0)
+                continue
+            polsby_popper = (4 * np.pi * area) / (perimeter ** 2)
+            compactness_scores.append(polsby_popper)
+        average_compactness = np.mean(compactness_scores) if compactness_scores else 0
+        return average_compactness
 
-        # Objectives
-        f[0] = self.population_equality(assignment)
-        f[1] = self.compactness(assignment)
-        f[2] = self.minority_representation(assignment)
-        f[3] = self.political_fairness(assignment)
-        f[4] = self.competitiveness(assignment)
-        f[5] = self.coi_preservation(assignment)
-        f[6] = self.socioeconomic_parity(assignment)
-        f[7] = self.environmental_justice(assignment)
-        f[8] = self.trend_consideration(assignment)
-
-        # Constraints
-        g[0] = self.contiguity_constraint(assignment)
-
-        return f, g
-
-    def population_equality(self, assignment):
-        """
-        Calculates the population deviation across districts.
-        """
-        district_populations = np.array([
-            self.population[assignment == i].sum() for i in range(self.num_districts)
-        ])
-        deviations = np.abs(district_populations - self.ideal_population) / self.ideal_population
-        return deviations.max() * self.weights['population_equality']
-
-    # Other methods remain largely the same, only adapting for the dynamic district count
-
-def optimize_districting(data, seeds=[1, 2, 3, 4, 5]):
+def optimize_districting(data: 'GeoDataFrame', seeds: List[int] = None) -> Tuple[List[np.ndarray], List[float]]:
     """
-    Runs the NSGA-III optimization algorithm multiple times with different seeds.
+    Optimizes the districting plan using a genetic algorithm.
+
+    Args:
+        data (GeoDataFrame): The geospatial data with demographic and other attributes.
+        seeds (List[int], optional): List of random seeds for reproducibility.
+
+    Returns:
+        Tuple[List[np.ndarray], List[float]]: A tuple containing the list of district assignments and their corresponding fitness scores.
     """
-    logger.info("Starting optimization with multi-start strategy.")
+    num_districts = Config.get_num_districts(Config.STATE_FIPS)
+    problem = DistrictingProblem(data, num_districts)
 
-    all_assignments = []
-    all_objectives = []
+    reference_directions = get_reference_directions("das-dennis", problem.n_obj, n_partitions=12)
 
-    for seed in seeds:
-        logger.info(f"Optimization run with seed {seed}.")
-        problem = RedistrictingProblem(data)
-        ref_dirs = get_reference_directions("das-dennis", problem.n_obj, n_partitions=12)
-        mutation = PolynomialMutation(prob=Config.STOCHASTIC_MUTATION_PROB, eta=20)
-        crossover = SBX(prob=0.9, eta=15)
-        sampling = IntegerRandomSampling()
+    algorithm = NSGA3(pop_size=Config.GA_POPULATION_SIZE,
+                      ref_dirs=reference_directions)
 
-        algorithm = NSGA3(
-            pop_size=Config.NSGA3_POPULATION_SIZE,
-            ref_dirs=ref_dirs,
-            sampling=sampling,
-            crossover=crossover,
-            mutation=mutation,
-            eliminate_duplicates=True
-        )
+    termination = get_termination("n_gen", Config.GA_GENERATIONS)
 
-        res = minimize(
-            problem,
-            algorithm,
-            ('n_gen', Config.NSGA3_GENERATIONS),
-            seed=seed,
-            verbose=True
-        )
+    logger.info("Starting optimization using NSGA-III.")
+    try:
+        res = minimize(problem,
+                       algorithm,
+                       termination,
+                       seed=seeds[0] if seeds else None,
+                       save_history=True,
+                       verbose=True)
+    except Exception as e:
+        logger.error(f"Optimization failed: {e}")
+        raise
 
-        all_assignments.extend(res.X)
-        all_objectives.extend(res.F)
+    assignments = res.X.astype(int).tolist()
+    fitness_scores = res.F.tolist()
 
-    logger.info("Multi-start optimization completed.")
-    return all_assignments, all_objectives
+    logger.info("Optimization completed successfully.")
+    return assignments, fitness_scores
 
-def generate_ensemble_plans(data, num_plans=10):
+def generate_ensemble_plans(data: 'GeoDataFrame', num_plans: int = 5) -> List[np.ndarray]:
     """
-    Generates an ensemble of districting plans.
+    Generates an ensemble of redistricting plans using different seeds.
+
+    Args:
+        data (GeoDataFrame): The geospatial data with demographic and other attributes.
+        num_plans (int, optional): Number of plans to generate.
+
+    Returns:
+        List[np.ndarray]: List of district assignments for each plan.
     """
-    logger.info("Generating ensemble of districting plans.")
-    seeds = np.random.randint(1, 10000, size=num_plans)
-    assignments, objectives = optimize_districting(data, seeds=seeds)
-    return assignments
+    ensemble = []
+    for seed in range(num_plans):
+        logger.info(f"Generating ensemble plan {seed + 1} with seed {seed}.")
+        assignments, _ = optimize_districting(data, seeds=[seed])
+        ensemble.append(np.array(assignments))
+    return ensemble
