@@ -11,13 +11,14 @@ from .visualization import (
     plot_fairness_metrics,
     visualize_district_characteristics,
     generate_explainable_report,
-    visualize_trend_analysis
+    visualize_trend_analysis,
+    generate_comparative_analysis_plot
 )
 from .analysis import analyze_districts, save_analysis_results, perform_sensitivity_analysis, compare_ensemble_plans, rank_plans
 from .versioning import save_plan
 import os
 import sys
-import json
+from typing import List, Dict
 
 app = Flask(__name__)
 app.secret_key = Config.ENCRYPTION_KEY or 'default_secret_key'  # Ensure to set a secure key in .env
@@ -47,7 +48,7 @@ def run_redistricting():
 
     # Update configuration if a different state is selected
     Config.STATE_FIPS = state_fips
-    # Optionally, map FIPS to state name if necessary
+    Config.STATE_NAME = Config.STATE_NAME  # Optionally, map FIPS to state name
 
     # System Checks
     try:
@@ -102,12 +103,22 @@ def run_redistricting():
 
     # Visualization
     try:
-        district_map_json = visualize_district_map(data, best_assignment)
-        fairness_metrics_json = plot_fairness_metrics(fairness_metrics)
-        characteristics_json = visualize_district_characteristics(data)
-        trend_analysis_json = visualize_trend_analysis(data)
-        generate_explainable_report(fairness_metrics, analysis_results)
-        logger.info("Visualizations generated and saved.")
+        # Generate individual visualizations
+        map_path = visualize_district_map(data, best_assignment)
+        fairness_metrics_path = plot_fairness_metrics(fairness_metrics)
+        characteristics_paths = visualize_district_characteristics(data)
+        trend_path = visualize_trend_analysis(data)
+        
+        # Generate comparative analysis if ensemble plans are available
+        ensemble = generate_ensemble_plans(data, num_plans=5)
+        ensemble_metrics = [evaluate_fairness(data, assignment) for assignment in ensemble]
+        comparative_plot_path = generate_comparative_analysis_plot(ensemble_metrics)
+        logger.info("Comparative analysis generated.")
+
+        # Generate explainable report
+        report_path = generate_explainable_report(fairness_metrics, analysis_results)
+        logger.info("Explainable report generated.")
+
     except Exception as e:
         logger.error(f"Visualization failed: {e}")
         flash(f"Visualization failed: {e}", 'danger')
@@ -132,47 +143,12 @@ def run_redistricting():
         flash(f"Sensitivity analysis failed: {e}", 'danger')
         return redirect(url_for('home'))
 
-    # Ensemble Analysis
-    try:
-        ensemble = generate_ensemble_plans(data, num_plans=5)
-        metrics_df = compare_ensemble_plans(data, ensemble)
-        weights = Config.OBJECTIVE_WEIGHTS
-        ranked_plans = rank_plans(metrics_df, weights)
-        logger.info("Ensemble analysis completed.")
-    except Exception as e:
-        logger.error(f"Ensemble analysis failed: {e}")
-        flash(f"Ensemble analysis failed: {e}", 'danger')
-        return redirect(url_for('home'))
-
-    # Prepare visualizations for rendering
-    try:
-        with open('district_map.html', 'r') as f:
-            district_map = f.read()
-        with open('fairness_metrics.html', 'r') as f:
-            fairness_metrics_plot = f.read()
-        with open('district_populations.html', 'r') as f:
-            district_populations_plot = f.read()
-        with open('minority_representation.html', 'r') as f:
-            minority_representation_plot = f.read()
-        with open('political_fairness.html', 'r') as f:
-            political_fairness_plot = f.read()
-        with open('population_trends.html', 'r') as f:
-            population_trends_plot = f.read()
-    except Exception as e:
-        logger.error(f"Failed to load visualization files: {e}")
-        flash(f"Failed to load visualization files: {e}", 'danger')
-        return redirect(url_for('home'))
-
+    flash("Redistricting process completed successfully!", 'success')
     return render_template('results.html',
                            fairness_metrics=fairness_metrics,
                            analysis_results=analysis_results,
-                           ranked_plans=ranked_plans,
-                           district_map=district_map,
-                           fairness_metrics_plot=fairness_metrics_plot,
-                           district_populations_plot=district_populations_plot,
-                           minority_representation_plot=minority_representation_plot,
-                           political_fairness_plot=political_fairness_plot,
-                           population_trends_plot=population_trends_plot)
+                           ranked_plans=None,  # Placeholder if needed
+                           comparative_plot_path=comparative_plot_path)
 
 @app.route('/download/<filename>')
 def download_file(filename):
