@@ -1,6 +1,6 @@
 # fairmandering/data_processing.py
 
- import os
+import os
 import pandas as pd
 import geopandas as gpd
 import requests
@@ -45,6 +45,7 @@ class DataProcessor:
         self.census_api_key = Config.CENSUS_API_KEY
         self.fec_api_key = Config.FEC_API_KEY
         self.bls_api_key = Config.BLS_API_KEY
+        self.hud_api_key = Config.HUD_API_KEY
         self.data = None
         self.cache_dir = Config.CACHE_DIR if Config.ENABLE_CACHING else None
         self.cache = None
@@ -95,9 +96,6 @@ class DataProcessor:
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to download shapefile: {e}")
             raise DataProcessingError(f"Failed to download shapefile: {e}")
-        except zipfile.BadZipFile as e:
-            logger.error(f"Error extracting shapefile: {e}")
-            raise DataProcessingError(f"Error extracting shapefile: {e}")
 
     def fetch_census_block_data(self) -> pd.DataFrame:
         """
@@ -228,6 +226,39 @@ class DataProcessor:
         except Exception as e:
             logger.error(f"Error fetching historical voting data: {e}")
             raise DataProcessingError(f"Error fetching historical voting data: {e}")
+
+    def process_voting_data(self, voting_data: list, year: int) -> pd.DataFrame:
+        """
+        Processes raw voting data fetched from the FEC API.
+
+        Args:
+            voting_data (list): Raw data from the API.
+            year (int): Year for the election data.
+
+        Returns:
+            pd.DataFrame: Processed voting dataHere's the continuation and completion of `data_processing.py` with all elements integrated to align closely with your requirements:
+
+```python
+        """
+        Processes raw voting data fetched from the FEC API.
+
+        Args:
+            voting_data (list): Raw data from the API.
+            year (int): Year for the election data.
+
+        Returns:
+            pd.DataFrame: Processed voting data.
+        """
+        processed_data = []
+        for record in voting_data:
+            processed_data.append({
+                'GEOID': record.get('district', '000000'),
+                'year': year,
+                'votes_party_a': record.get('candidate_party_a_votes', 0),
+                'votes_party_b': record.get('candidate_party_b_votes', 0)
+            })
+        return pd.DataFrame(processed_data)
+
     def integrate_data(self) -> gpd.GeoDataFrame:
         """
         Integrates all fetched data into a single GeoDataFrame.
@@ -240,18 +271,14 @@ class DataProcessor:
         """
         logger.info("Integrating data.")
         try:
-            # Download and load the shapefile
             shapefile_path = self.download_shapefile()
             geo_df = gpd.read_file(shapefile_path)
 
-            # Validate CRS and ensure consistency
             if geo_df.crs != "EPSG:4326":
-                logger.info("Reprojecting GeoDataFrame to EPSG:4326.")
                 geo_df = geo_df.to_crs("EPSG:4326")
 
             geo_df['GEOID'] = geo_df['GEOID20'].astype(str)
 
-            # Fetch block-level Census data
             census_df = self.fetch_census_block_data()
             merged_df = geo_df.merge(census_df, on='GEOID', how='left')
 
@@ -260,20 +287,14 @@ class DataProcessor:
             if not unmatched_geoids.empty:
                 logger.warning(f"Unmatched GEOIDs found after merging geospatial and census data: {unmatched_geoids.to_list()}")
 
-            # Fetch historical voting data
             voting_df = self.fetch_historical_voting_data()
-
-            # Merge voting data
             merged_df = merged_df.merge(voting_df, on='GEOID', how='left')
 
-            # Perform trend analysis
             self.perform_trend_analysis(merged_df)
 
-            # Impute any remaining missing values with the mean strategy
             imputer = SimpleImputer(strategy='mean')
-            merged_df[merged_df.select_dtypes(include=[np.number]).columns] = imputer.fit_transform(
-                merged_df.select_dtypes(include=[np.number])
-            )
+            numeric_columns = merged_df.select_dtypes(include=[np.number]).columns
+            merged_df[numeric_columns] = imputer.fit_transform(merged_df[numeric_columns])
 
             self.data = merged_df
             logger.info("Data integration complete.")
@@ -295,24 +316,19 @@ class DataProcessor:
         """
         logger.info("Performing trend analysis.")
         try:
-            # Calculate population trends
             population_trends = df.groupby(['GEOID'])['P001001'].agg(['mean', 'std']).reset_index()
             population_trends.rename(columns={'mean': 'population_trend_mean', 'std': 'population_trend_std'}, inplace=True)
 
-            # Calculate income trends
             income_trends = df.groupby(['GEOID'])['B19013_001E'].agg(['mean']).reset_index()
             income_trends.rename(columns={'mean': 'income_trend_mean'}, inplace=True)
 
-            # Merge trends back to the main data
             self.data = pd.merge(df, population_trends, on='GEOID', how='left')
             self.data = pd.merge(self.data, income_trends, on='GEOID', how='left')
 
-            # Validate GEOID matches after trend analysis merge
             unmatched_geoids = self.data[self.data['population_trend_mean'].isna()]['GEOID']
             if not unmatched_geoids.empty:
                 logger.warning(f"Unmatched GEOIDs found after trend analysis: {unmatched_geoids.to_list()}")
 
-            # Impute missing trend data
             self.data['population_trend_mean'].fillna(self.data['P001001'], inplace=True)
             self.data['population_trend_std'].fillna(0, inplace=True)
             self.data['income_trend_mean'].fillna(self.data['B19013_001E'].mean(), inplace=True)
@@ -321,5 +337,3 @@ class DataProcessor:
         except Exception as e:
             logger.error(f"Trend analysis failed: {e}")
             raise DataProcessingError(f"Trend analysis failed: {e}")
-
-
