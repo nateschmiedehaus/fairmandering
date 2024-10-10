@@ -1,12 +1,7 @@
 # fairmandering/main.py
 
 import logging
-import sys
-import threading
-from tkinter import (
-    Tk, Label, Entry, Button, StringVar, IntVar, DoubleVar, Text, Scrollbar, RIGHT, Y, END, LEFT, BOTH, Frame
-)
-from tkinter import messagebox
+from flask import Flask, render_template, request, redirect, url_for, send_file, flash
 from .config import Config
 from .data_processing import DataProcessor, DataProcessingError
 from .optimization import optimize_districting, generate_ensemble_plans
@@ -18,249 +13,159 @@ from .visualization import (
     generate_explainable_report,
     visualize_trend_analysis
 )
-from .analysis import (
-    analyze_districts,
-    save_analysis_results,
-    perform_sensitivity_analysis,
-    compare_ensemble_plans,
-    rank_plans
-)
+from .analysis import analyze_districts, save_analysis_results, perform_sensitivity_analysis, compare_ensemble_plans, rank_plans
 from .versioning import save_plan
-import argparse
+import os
+import sys
 
+app = Flask(__name__)
+app.secret_key = Config.ENCRYPTION_KEY or 'default_secret_key'  # Ensure to set a secure key in .env
+
+# Configure logging
+logging.basicConfig(
+    filename=Config.LOG_FILE,
+    level=Config.LOG_LEVEL,
+    format='%(asctime)s:%(levelname)s:%(name)s:%(message)s'
+)
 logger = logging.getLogger(__name__)
 
-class FairmanderingGUI:
-    def __init__(self, master):
-        self.master = master
-        master.title("Fairmandering Redistricting System")
+@app.route('/')
+def home():
+    """
+    Home page of the Fairmandering GUI.
+    """
+    return render_template('home.html')
 
-        # Configure logging
-        logging.basicConfig(
-            filename=Config.LOG_FILE,
-            level=Config.LOG_LEVEL,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
+@app.route('/run', methods=['POST'])
+def run_redistricting():
+    """
+    Handles the redistricting process initiated from the GUI.
+    """
+    state_fips = request.form.get('state_fips', Config.STATE_FIPS)
+    logger.info(f"Redistricting process started for state FIPS: {state_fips}")
 
-        # State FIPS Code
-        self.state_fips_label = Label(master, text="State FIPS Code:")
-        self.state_fips_label.pack()
-        self.state_fips_var = StringVar(value=Config.STATE_FIPS)
-        self.state_fips_entry = Entry(master, textvariable=self.state_fips_var)
-        self.state_fips_entry.pack()
+    # Update configuration if a different state is selected
+    Config.STATE_FIPS = state_fips
+    Config.STATE_NAME = Config.STATE_NAME  # Optionally, map FIPS to state name
 
-        # Start Button
-        self.start_button = Button(master, text="Start Redistricting", command=self.start_process)
-        self.start_button.pack(pady=10)
+    # System Checks
+    try:
+        Config.validate()
+        logger.info("Configuration validated successfully.")
+    except Exception as e:
+        logger.error(f"Configuration validation failed: {e}")
+        flash(f"Configuration validation failed: {e}", 'danger')
+        return redirect(url_for('home'))
 
-        # Status Text
-        self.status_frame = Frame(master)
-        self.status_frame.pack(fill=BOTH, expand=True)
-        self.status_text = Text(self.status_frame, wrap='word')
-        self.status_scroll = Scrollbar(self.status_frame, command=self.status_text.yview)
-        self.status_text.configure(yscrollcommand=self.status_scroll.set)
-        self.status_scroll.pack(side=RIGHT, fill=Y)
-        self.status_text.pack(side=LEFT, fill=BOTH, expand=True)
+    # Data Processing
+    processor = DataProcessor(state_fips, Config.STATE_NAME)
+    try:
+        data = processor.integrate_data()
+    except DataProcessingError as e:
+        logger.error(f"Data processing failed: {e}")
+        flash(f"Data processing failed: {e}", 'danger')
+        return redirect(url_for('home'))
+    except Exception as e:
+        logger.error(f"Unexpected error during data processing: {e}")
+        flash(f"Unexpected error during data processing: {e}", 'danger')
+        return redirect(url_for('home'))
 
-    def log(self, message):
-        self.status_text.insert(END, message + '\n')
-        self.status_text.see(END)
-        logger.info(message)
+    # Optimization
+    try:
+        district_assignments, fitness_scores = optimize_districting(data, seeds=[42])  # Using a fixed seed for reproducibility
+        best_assignment = district_assignments[0]  # Select the first solution as the best
+        logger.info("Optimization completed successfully.")
+    except Exception as e:
+        logger.error(f"Optimization failed: {e}")
+        flash(f"Optimization failed: {e}", 'danger')
+        return redirect(url_for('home'))
 
-    def start_process(self):
-        thread = threading.Thread(target=self.run_redistricting)
-        thread.start()
+    # Fairness Evaluation
+    try:
+        fairness_metrics = evaluate_fairness(data, best_assignment)
+        logger.info("Fairness evaluation completed.")
+    except Exception as e:
+        logger.error(f"Fairness evaluation failed: {e}")
+        flash(f"Fairness evaluation failed: {e}", 'danger')
+        return redirect(url_for('home'))
 
-    def run_redistricting(self):
-        self.start_button.config(state='disabled')
-        self.log("Starting the redistricting process.")
+    # Analysis
+    try:
+        analysis_results = analyze_districts(data)
+        save_analysis_results(analysis_results)
+        logger.info("District analysis completed and results saved.")
+    except Exception as e:
+        logger.error(f"Analysis failed: {e}")
+        flash(f"Analysis failed: {e}", 'danger')
+        return redirect(url_for('home'))
 
-        # Perform system checks
-        try:
-            self.log("Performing system checks...")
-            Config.validate()
-            logger.info("Configuration validated successfully.")
-            self.log("Configuration validated successfully.")
+    # Visualization
+    try:
+        visualize_district_map(data, best_assignment)
+        plot_fairness_metrics(fairness_metrics)
+        visualize_district_characteristics(data)
+        visualize_trend_analysis(data)
+        generate_explainable_report(fairness_metrics, analysis_results)
+        logger.info("Visualizations generated and saved.")
+    except Exception as e:
+        logger.error(f"Visualization failed: {e}")
+        flash(f"Visualization failed: {e}", 'danger')
+        return redirect(url_for('home'))
 
-            # Check for required packages
-            required_packages = [
-                'pandas', 'geopandas', 'numpy', 'scipy', 'requests', 'census', 'pymoo',
-                'matplotlib', 'seaborn', 'folium', 'python-dotenv', 'joblib', 'scikit-learn',
-                'cryptography', 'us', 'plotly', 'redis', 'tkinter'
-            ]
-            for pkg in required_packages:
-                __import__(pkg)
-            self.log("All required packages are installed.")
-            logger.info("All required packages are installed.")
+    # Versioning
+    try:
+        metadata = {'author': 'Your Name', 'description': 'Initial plan'}
+        plan_path = save_plan(best_assignment, metadata, version='1.0.0')
+        logger.info(f"Plan versioned and saved at {plan_path}.")
+    except Exception as e:
+        logger.error(f"Versioning failed: {e}")
+        flash(f"Versioning failed: {e}", 'danger')
+        return redirect(url_for('home'))
 
-        except Exception as e:
-            error_message = f"System check failed: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("System Check Failed", error_message)
-            self.start_button.config(state='normal')
-            return
+    # Sensitivity Analysis
+    try:
+        perform_sensitivity_analysis(data, best_assignment)
+        logger.info("Sensitivity analysis completed.")
+    except Exception as e:
+        logger.error(f"Sensitivity analysis failed: {e}")
+        flash(f"Sensitivity analysis failed: {e}", 'danger')
+        return redirect(url_for('home'))
 
-        # Parse arguments
-        state_fips = self.state_fips_var.get()
+    # Ensemble Analysis
+    try:
+        ensemble = generate_ensemble_plans(data, num_plans=5)
+        metrics_df = compare_ensemble_plans(data, ensemble)
+        weights = Config.OBJECTIVE_WEIGHTS
+        ranked_plans = rank_plans(metrics_df, weights)
+        logger.info("Ensemble analysis completed.")
+    except Exception as e:
+        logger.error(f"Ensemble analysis failed: {e}")
+        flash(f"Ensemble analysis failed: {e}", 'danger')
+        return redirect(url_for('home'))
 
-        # Get the number of districts dynamically from the Census API
-        try:
-            self.log(f"Retrieving number of districts for state FIPS {state_fips}...")
-            num_districts = Config.get_num_districts(state_fips)
-            self.log(f"Number of districts for state FIPS {state_fips}: {num_districts}")
-            logger.info(f"Number of districts for state FIPS {state_fips}: {num_districts}")
-        except Exception as e:
-            error_message = f"Failed to get the number of districts: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("District Retrieval Failed", error_message)
-            self.start_button.config(state='normal')
-            return
+    flash("Redistricting process completed successfully!", 'success')
+    return render_template('results.html',
+                           fairness_metrics=fairness_metrics,
+                           analysis_results=analysis_results,
+                           ranked_plans=ranked_plans)
 
-        # Data Processing
-        processor = DataProcessor(state_fips, Config.STATE_NAME)
-        try:
-            self.log("Integrating data...")
-            data = processor.integrate_data()
-            self.log("Data integration complete.")
-            logger.info("Data integration complete.")
-        except DataProcessingError as e:
-            error_message = f"Data processing failed: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("Data Processing Failed", error_message)
-            self.start_button.config(state='normal')
-            return
-        except Exception as e:
-            error_message = f"Unexpected error during data processing: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("Data Processing Error", error_message)
-            self.start_button.config(state='normal')
-            return
+@app.route('/download/<filename>')
+def download_file(filename):
+    """
+    Allows users to download generated files.
+    """
+    try:
+        return send_file(os.path.join(os.getcwd(), filename), as_attachment=True)
+    except Exception as e:
+        logger.error(f"File download failed: {e}")
+        flash(f"File download failed: {e}", 'danger')
+        return redirect(url_for('home'))
 
-        # Optimization
-        try:
-            self.log("Starting optimization...")
-            district_assignments, _ = optimize_districting(data, seeds=[1, 2, 3, 4, 5])
-            best_assignment = district_assignments[0]  # For simplicity, use the first solution
-            self.log("Optimization completed.")
-            logger.info("Optimization completed.")
-        except Exception as e:
-            error_message = f"Optimization failed: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("Optimization Failed", error_message)
-            self.start_button.config(state='normal')
-            return
-
-        # Fairness Evaluation
-        try:
-            self.log("Evaluating fairness...")
-            fairness_metrics = evaluate_fairness(data, best_assignment)
-            self.log("Fairness evaluation completed.")
-            logger.info("Fairness evaluation completed.")
-        except Exception as e:
-            error_message = f"Fairness evaluation failed: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("Fairness Evaluation Failed", error_message)
-            self.start_button.config(state='normal')
-            return
-
-        # Analysis
-        try:
-            self.log("Analyzing districts...")
-            analysis_results = analyze_districts(data)
-            save_analysis_results(analysis_results)
-            self.log("Analysis completed and results saved.")
-            logger.info("Analysis completed and results saved.")
-        except Exception as e:
-            error_message = f"Analysis failed: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("Analysis Failed", error_message)
-            self.start_button.config(state='normal')
-            return
-
-        # Visualization
-        try:
-            self.log("Generating visualizations...")
-            visualize_district_map(data, best_assignment)
-            plot_fairness_metrics(fairness_metrics)
-            visualize_district_characteristics(data)
-            visualize_trend_analysis(data)
-            generate_explainable_report(fairness_metrics, analysis_results)
-            self.log("Visualizations generated and saved.")
-            logger.info("Visualizations generated and saved.")
-        except Exception as e:
-            error_message = f"Visualization failed: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("Visualization Failed", error_message)
-            self.start_button.config(state='normal')
-            return
-
-        # Versioning
-        try:
-            self.log("Saving districting plan version...")
-            metadata = {'author': 'Your Name', 'description': 'Initial plan'}
-            save_plan(best_assignment, metadata, version='1.0.0')
-            self.log("Districting plan saved.")
-            logger.info("Districting plan saved.")
-        except Exception as e:
-            error_message = f"Versioning failed: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("Versioning Failed", error_message)
-            self.start_button.config(state='normal')
-            return
-
-        # Sensitivity Analysis
-        try:
-            self.log("Performing sensitivity analysis...")
-            perform_sensitivity_analysis(data, best_assignment)
-            self.log("Sensitivity analysis completed and results saved.")
-            logger.info("Sensitivity analysis completed and results saved.")
-        except Exception as e:
-            error_message = f"Sensitivity analysis failed: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("Sensitivity Analysis Failed", error_message)
-            self.start_button.config(state='normal')
-            return
-
-        # Ensemble Analysis
-        try:
-            self.log("Generating ensemble plans...")
-            ensemble = generate_ensemble_plans(data, num_plans=5)
-            self.log("Comparing ensemble plans...")
-            metrics_df = compare_ensemble_plans(data, ensemble)
-            weights = Config.OBJECTIVE_WEIGHTS
-            self.log("Ranking plans based on metrics...")
-            ranked_plans = rank_plans(metrics_df, weights)
-            self.log("Ensemble analysis completed and ranked plans saved.")
-            logger.info("Ensemble analysis completed and ranked plans saved.")
-        except Exception as e:
-            error_message = f"Ensemble analysis failed: {e}"
-            self.log(error_message)
-            logger.error(error_message)
-            messagebox.showerror("Ensemble Analysis Failed", error_message)
-            self.start_button.config(state='normal')
-            return
-
-        self.log("Redistricting process completed successfully.")
-        messagebox.showinfo("Success", "Redistricting process completed successfully.")
-        self.start_button.config(state='normal')
-
-
-def main():
-    root = Tk()
-    gui = FairmanderingGUI(root)
-    root.geometry("600x400")
-    root.mainloop()
-
+def run_flask_app():
+    """
+    Runs the Flask web application.
+    """
+    app.run(host=Config.FLASK_HOST, port=Config.FLASK_PORT, debug=Config.FLASK_DEBUG)
 
 if __name__ == "__main__":
-    main()
+    run_flask_app()
