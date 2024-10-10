@@ -1,0 +1,41 @@
+/* static/css/custom.css */
+
+/* Custom Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f4f6f9;
+}
+
+h1, h2, h3 {
+    color: #343a40;
+}
+
+.section {
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 30px;
+}
+
+/* Customize Buttons */
+.btn-custom {
+    background-color: #343a40;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.btn-custom:hover {
+    background-color: #495057;
+    color: #ffffff;
+}
+
+/* Iframe Styling */
+iframe {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+}
