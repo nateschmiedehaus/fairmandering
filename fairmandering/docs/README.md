@@ -14,6 +14,10 @@ Fairmandering is a comprehensive redistricting system designed to create fair an
 - **Versioning**: Implements a robust versioning system for redistricting plans.
 - **Security**: Includes encryption and secure key management for sensitive data.
 - **Documentation**: Comprehensive API references, user guides, and examples.
+- **Genetic Algorithm Optimization** using NSGA-II for fairness objectives.
+- **Data Integration** from Census and election data.
+- **Interactive Tableau Dashboards** for visual analysis.
+- **Modern UI** with Tailwind CSS, D3.js, and Plotly.
 
 ## Installation
 
