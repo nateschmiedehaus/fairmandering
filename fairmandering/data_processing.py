@@ -44,6 +44,7 @@ class DataProcessor:
         self.state_name = state_name
         self.census_api_key = Config.CENSUS_API_KEY
         self.fec_api_key = Config.FEC_API_KEY
+        self.bls_api_key = Config.BLS_API_KEY
         self.data = None
         self.cache_dir = Config.CACHE_DIR if Config.ENABLE_CACHING else None
         self.cache = None
@@ -123,7 +124,7 @@ class DataProcessor:
         try:
             counties = c.sf1.state_county(fields=['COUNTY'], state_fips=self.state_fips)
 
-            def fetch_county_data(county_fips: str) -> List[dict]:
+            def fetch_county_data(county_fips: str) -> list:
                 logger.info(f"Fetching data for county {county_fips}.")
                 data = c.sf1.state_county_block(
                     fields=[
@@ -131,6 +132,8 @@ class DataProcessor:
                         'P005003',  # White alone
                         'P005004',  # Black or African American alone
                         'P005010',  # Hispanic or Latino
+                        'B19013_001E',  # Median Household Income (BLS integration)
+                        'B23025_003E'  # Employment status (employed) (BLS integration)
                     ],
                     state_fips=self.state_fips,
                     county_fips=county_fips,
@@ -164,7 +167,7 @@ class DataProcessor:
         census_df['GEOID'] = (
             census_df['state'] + census_df['county'] + census_df['tract'] + census_df['block']
         )
-        numeric_columns = ['P001001', 'P005003', 'P005004', 'P005010']
+        numeric_columns = ['P001001', 'P005003', 'P005004', 'P005010', 'B19013_001E', 'B23025_003E']
         census_df[numeric_columns] = census_df[numeric_columns].apply(pd.to_numeric, errors='coerce')
 
         # Cache the data
@@ -232,12 +235,12 @@ class DataProcessor:
             logger.error(f"Error fetching historical voting data: {e}")
             raise DataProcessingError(f"Error fetching historical voting data: {e}")
 
-    def process_voting_data(self, voting_data: List[dict], year: int) -> pd.DataFrame:
+    def process_voting_data(self, voting_data: list, year: int) -> pd.DataFrame:
         """
         Processes raw voting data fetched from the FEC API.
 
         Args:
-            voting_data (List[dict]): Raw data from the API.
+            voting_data (list): Raw data from the API.
             year (int): Year for the election data.
 
         Returns:
