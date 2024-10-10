@@ -1,0 +1,26 @@
+# .gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+.env
+
+# Static generated files
+static/*.html
+
+# Plans directory
+plans/
+
+# Logs
+fairmandering.log
+
+# Secrets
+*.env
