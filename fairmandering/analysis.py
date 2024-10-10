@@ -2,7 +2,10 @@
 
 import pandas as pd
 import logging
+import matplotlib.pyplot as plt
 from .config import Config
+from .optimization import optimize_districting
+from .fairness_evaluation import evaluate_fairness
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +33,18 @@ def analyze_districts(data):
         competitiveness = abs(
             district_data['votes_party_a'].sum() - district_data['votes_party_b'].sum()
         )
+        # Additional analysis metrics
+        area = district_data.geometry.area.sum()
+        compactness = area / (district_data.geometry.length.sum() ** 2)
 
         analysis_results[i] = {
             'total_population': total_population,
             'minority_population': minority_population,
             'median_income': median_income,
             'environmental_hazard_index': environmental_hazard,
-            'competitiveness': competitiveness
+            'competitiveness': competitiveness,
+            'area': area,
+            'compactness': compactness,
         }
 
     logger.info("District analysis completed.")
@@ -64,7 +72,6 @@ def perform_sensitivity_analysis(data, assignment):
     """
     logger.info("Performing sensitivity analysis.")
 
-    # Example: Varying the weight of population equality
     original_weight = Config.OBJECTIVE_WEIGHTS['population_equality']
     deviations = []
     weights = [0.5 * original_weight, original_weight, 1.5 * original_weight]
@@ -76,10 +83,10 @@ def perform_sensitivity_analysis(data, assignment):
         fairness_metrics = evaluate_fairness(data, best_assignment)
         deviations.append(fairness_metrics['population_equality'])
 
-    # Restore original weight
     Config.OBJECTIVE_WEIGHTS['population_equality'] = original_weight
 
     # Plotting the sensitivity analysis
+    plt.figure(figsize=(10, 6))
     plt.plot(weights, deviations, marker='o')
     plt.xlabel('Population Equality Weight')
     plt.ylabel('Population Deviation')
