@@ -19,7 +19,8 @@ def evaluate_fairness(data, assignment):
     """
     logger.info("Evaluating fairness of the districting plan.")
 
-    num_districts = Config.NUM_DISTRICTS
+    # Get the number of districts dynamically based on the input data
+    num_districts = len(np.unique(assignment))
     fairness_metrics = {}
 
     # Population Equality
@@ -48,13 +49,13 @@ def evaluate_fairness(data, assignment):
         data.loc[assignment == i, 'votes_party_b'].sum() for i in range(num_districts)
     ])
     total_votes = party_a_votes + party_b_votes
-    vote_shares = party_a_votes / total_votes
+    vote_shares = np.where(total_votes != 0, party_a_votes / total_votes, 0.5)  # Handle zero division cases
     deviation = np.abs(vote_shares - 0.5)
     fairness_metrics['political_fairness'] = deviation.mean()
 
     # Competitiveness
     margins = np.abs(party_a_votes - party_b_votes)
-    competitiveness = margins / total_votes
+    competitiveness = np.where(total_votes != 0, margins / total_votes, 1.0)  # Handle zero division cases
     fairness_metrics['competitiveness'] = competitiveness.mean()
 
     logger.info("Fairness evaluation completed.")
