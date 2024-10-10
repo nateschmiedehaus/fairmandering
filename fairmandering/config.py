@@ -1,9 +1,9 @@
 #config.py
-
 import os
 from dotenv import load_dotenv
 import logging
 from census import Census
+from math import sqrt
 
 load_dotenv()
 
@@ -11,11 +11,12 @@ class Config:
     """
     Configuration class that holds all settings and parameters for the redistricting system.
     """
-   
+
     # REDIS configuration
     REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
     REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
     REDIS_DB = int(os.getenv('REDIS_DB', '0'))
+
     # Logging configuration
     LOG_FILE = 'fairmandering.log'
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
@@ -39,7 +40,7 @@ class Config:
     OBJECTIVE_WEIGHTS = {
         'population_equality': float(os.getenv('WEIGHT_POPULATION_EQUALITY', '1.0')),
         'compactness': float(os.getenv('WEIGHT_COMPACTNESS', '1.0')),
-        'minority_representation': float(os.getenv('WEIGHT_MINORITY_REPRESENTATION', '1.0')),
+        'minority_representation': float(os.getenv('WEIGHT_MINOR_REPRESENTATION', '1.0')),
         'political_fairness': float(os.getenv('WEIGHT_POLITICAL_FAIRNESS', '1.0')),
         'competitiveness': float(os.getenv('WEIGHT_COMPETITIVENESS', '1.0')),
         'coi_preservation': float(os.getenv('WEIGHT_COI_PRESERVATION', '1.0')),
@@ -86,23 +87,13 @@ class Config:
         Returns:
             int: The calculated number of congressional districts.
         """
-        # Minimum number of seats for any state
         base_seats = 1
-
-        # The divisor (called "standard divisor") is the total U.S. population divided by 435 (total House seats).
-        # Assuming national_population is accessible or calculated elsewhere in the system:
-        national_population = 331002651  # For example purposes, the 2020 U.S. population
+        national_population = 331002651  # Example: 2020 U.S. population
         standard_divisor = national_population / 435
 
-        # Calculate the ideal number of seats based on the state population
-        ideal_seats = population / standard_divisor
-
-        # Apply Huntington-Hill rounding method:
-        # It rounds based on the geometric mean of n and n+1.
         def huntington_hill_rounding(n, pop, divisor):
             return (n + 1) if pop / divisor > sqrt(n * (n + 1)) else n
 
-        # Start with the base number of seats
         num_seats = base_seats
         while huntington_hill_rounding(num_seats, population, standard_divisor) > num_seats:
             num_seats += 1
@@ -135,11 +126,7 @@ class Config:
     def validate(cls):
         """
         Validates the configuration parameters to ensure they are set correctly.
-
-        This function checks for missing API keys and invalid parameter values,
-        raising exceptions if any issues are found.
         """
-        # Check API keys
         api_keys = {
             'CENSUS_API_KEY': cls.CENSUS_API_KEY,
             'FEC_API_KEY': cls.FEC_API_KEY,
@@ -151,7 +138,6 @@ class Config:
             if not value:
                 raise ValueError(f"Missing API key: {key}. Please set it in the .env file.")
 
-        # Check optimization parameters
         if cls.NSGA3_POPULATION_SIZE <= 0:
             raise ValueError("NSGA3_POPULATION_SIZE must be a positive integer.")
         if cls.NSGA3_GENERATIONS <= 0:
@@ -159,30 +145,23 @@ class Config:
         if not (0 <= cls.STOCHASTIC_MUTATION_PROB <= 1):
             raise ValueError("STOCHASTIC_MUTATION_PROB must be between 0 and 1.")
 
-        # Check adaptive weights
         for weight in cls.OBJECTIVE_WEIGHTS.values():
             if weight < 0:
                 raise ValueError("Objective weights must be non-negative.")
 
-        # Check paths
         if not os.path.exists(cls.SHAPEFILE_PATH):
             logging.warning(f"Shapefile path does not exist: {cls.SHAPEFILE_PATH}. It will be downloaded.")
 
-        # Check caching settings
         if cls.ENABLE_CACHING and not os.path.exists(cls.CACHE_DIR):
             os.makedirs(cls.CACHE_DIR)
 
-        # Check parallelization settings
         if cls.ENABLE_PARALLELIZATION and cls.NUM_WORKERS <= 0:
             raise ValueError("NUM_WORKERS must be a positive integer.")
 
-        # Check trend years
         if not cls.TREND_YEARS or not all(isinstance(year, int) for year in cls.TREND_YEARS):
             raise ValueError("TREND_YEARS must be a list of integers representing years.")
 
-        # Check encryption settings
         if cls.ENABLE_ENCRYPTION and not cls.ENCRYPTION_KEY:
             raise ValueError("ENCRYPTION_KEY must be set if encryption is enabled.")
 
-        # All checks passed
         return True
