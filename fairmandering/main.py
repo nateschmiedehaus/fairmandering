@@ -48,7 +48,6 @@ def run_redistricting():
 
     # Update configuration if a different state is selected
     Config.STATE_FIPS = state_fips
-    Config.STATE_NAME = Config.STATE_NAME  # Optionally, map FIPS to state name
 
     # System Checks
     try:
@@ -103,19 +102,17 @@ def run_redistricting():
 
     # Visualization
     try:
-        # Generate individual visualizations
         map_path = visualize_district_map(data, best_assignment)
         fairness_metrics_path = plot_fairness_metrics(fairness_metrics)
         characteristics_paths = visualize_district_characteristics(data)
         trend_path = visualize_trend_analysis(data)
-        
+
         # Generate comparative analysis if ensemble plans are available
         ensemble = generate_ensemble_plans(data, num_plans=5)
         ensemble_metrics = [evaluate_fairness(data, assignment) for assignment in ensemble]
         comparative_plot_path = generate_comparative_analysis_plot(ensemble_metrics)
         logger.info("Comparative analysis generated.")
 
-        # Generate explainable report
         report_path = generate_explainable_report(fairness_metrics, analysis_results)
         logger.info("Explainable report generated.")
 
@@ -126,7 +123,7 @@ def run_redistricting():
 
     # Versioning
     try:
-        metadata = {'author': 'Your Name', 'description': 'Initial plan'}
+        metadata = {'author': 'Nathaniel Schmiedehaus', 'description': 'Initial plan'}
         plan_path = save_plan(best_assignment, metadata, version='1.0.0')
         logger.info(f"Plan versioned and saved at {plan_path}.")
     except Exception as e:
@@ -147,8 +144,14 @@ def run_redistricting():
     return render_template('results.html',
                            fairness_metrics=fairness_metrics,
                            analysis_results=analysis_results,
-                           ranked_plans=None,  # Placeholder if needed
                            comparative_plot_path=comparative_plot_path)
+
+@app.route('/tableau')
+def tableau_dashboard():
+    """
+    Route for displaying Tableau Public dashboard.
+    """
+    return render_template('tableau_dashboard.html')
 
 @app.route('/download/<filename>')
 def download_file(filename):
