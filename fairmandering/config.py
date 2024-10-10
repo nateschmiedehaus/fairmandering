@@ -19,6 +19,10 @@ class Config:
     REDIS_DB = int(os.getenv('REDIS_DB', '0'))
     REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', None)
 
+    # TABLEAU Configuration
+    TABLEAU_SERVER_URL = 'https://public.tableau.com/'
+
+
     # Logging configuration
     LOG_FILE = 'fairmandering.log'
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
