@@ -1,3 +1,5 @@
+# fairmandering/data_processing.py
+
 import os
 import pandas as pd
 import geopandas as gpd
@@ -34,6 +36,7 @@ class DataProcessor:
         self.state_fips = state_fips
         self.state_name = state_name
         self.census_api_key = Config.CENSUS_API_KEY
+        self.fec_api_key = Config.FEC_API_KEY
         self.data = None
         self.cache_dir = Config.CACHE_DIR if Config.ENABLE_CACHING else None
         self.cache = None
@@ -145,6 +148,70 @@ class DataProcessor:
 
         logger.info("Census block-level data fetched successfully.")
         return census_df
+
+    def fetch_historical_voting_data(self):
+        """
+        Fetches historical voting data using the FEC API.
+        """
+        logger.info("Fetching historical voting data.")
+
+        cache_key = f"voting_data_{self.state_fips}"
+        if self.cache and self.cache.exists(cache_key):
+            logger.info("Loading voting data from cache.")
+            voting_df = pickle.loads(self.cache.get(cache_key))
+            return voting_df
+
+        try:
+            all_data = []
+            for year in Config.TREND_YEARS:
+                url = (
+                    f"https://api.open.fec.gov/v1/elections/?state={self.state_name}&election_year={year}"
+                    f"&office=H&district=*&api_key={self.fec_api_key}"
+                )
+                response = requests.get(url)
+                response.raise_for_status()
+                voting_data = response.json().get('results', [])
+
+                # Process the voting data
+                processed_data = self.process_voting_data(voting_data, year)
+                all_data.append(processed_data)
+
+            voting_df = pd.concat(all_data, ignore_index=True)
+            if voting_df.empty:
+                raise DataProcessingError("Voting data is empty.")
+
+            # Cache the data
+            if self.cache:
+                self.cache.set(cache_key, pickle.dumps(voting_df))
+                self.cache.expire(cache_key, Config.CACHE_EXPIRATION_TIME)
+
+            logger.info("Historical voting data fetched successfully.")
+            return voting_df
+
+        except Exception as e:
+            logger.error(f"Error fetching historical voting data: {e}")
+            raise DataProcessingError(f"Error fetching historical voting data: {e}")
+
+    def process_voting_data(self, voting_data, year):
+        """
+        Processes raw voting data fetched from the FEC API.
+
+        Args:
+            voting_data (list): Raw data from the API.
+            year (int): Year for the election data.
+
+        Returns:
+            DataFrame: Processed voting data.
+        """
+        processed_data = []
+        for record in voting_data:
+            processed_data.append({
+                'GEOID': record.get('district'),
+                'year': year,
+                'votes_party_a': record.get('candidate_party_a_votes', 0),
+                'votes_party_b': record.get('candidate_party_b_votes', 0)
+            })
+        return pd.DataFrame(processed_data)
 
     def integrate_data(self):
         """
