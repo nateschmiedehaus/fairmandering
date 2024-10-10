@@ -17,7 +17,6 @@ from .visualization import (
 from .analysis import analyze_districts, save_analysis_results, perform_sensitivity_analysis, compare_ensemble_plans, rank_plans
 from .versioning import save_plan
 import os
-import sys
 from typing import List, Dict
 
 app = Flask(__name__)
@@ -49,58 +48,62 @@ def run_redistricting():
     # Update configuration if a different state is selected
     Config.STATE_FIPS = state_fips
 
-    # System Checks
     try:
+        # System Checks
         Config.validate()
         logger.info("Configuration validated successfully.")
-    except Exception as e:
-        logger.error(f"Configuration validation failed: {e}")
-        flash(f"Configuration validation failed: {e}", 'danger')
-        return redirect(url_for('home'))
-
-    # Data Processing
-    processor = DataProcessor(state_fips, Config.STATE_NAME)
-    try:
+        
+        # Data Processing
+        processor = DataProcessor(state_fips, Config.STATE_NAME)
         data = processor.integrate_data()
-    except DataProcessingError as e:
-        logger.error(f"Data processing failed: {e}")
-        flash(f"Data processing failed: {e}", 'danger')
-        return redirect(url_for('home'))
-    except Exception as e:
-        logger.error(f"Unexpected error during data processing: {e}")
-        flash(f"Unexpected error during data processing: {e}", 'danger')
-        return redirect(url_for('home'))
 
-    # Optimization
-    try:
+        # Optimization
         district_assignments, fitness_scores = optimize_districting(data, seeds=[42])  # Using a fixed seed for reproducibility
         best_assignment = district_assignments[0]  # Select the first solution as the best
         logger.info("Optimization completed successfully.")
-    except Exception as e:
-        logger.error(f"Optimization failed: {e}")
-        flash(f"Optimization failed: {e}", 'danger')
-        return redirect(url_for('home'))
 
-    # Fairness Evaluation
-    try:
+        # Fairness Evaluation
         fairness_metrics = evaluate_fairness(data, best_assignment)
         logger.info("Fairness evaluation completed.")
-    except Exception as e:
-        logger.error(f"Fairness evaluation failed: {e}")
-        flash(f"Fairness evaluation failed: {e}", 'danger')
-        return redirect(url_for('home'))
 
-    # Analysis
-    try:
+        # Analysis
         analysis_results = analyze_districts(data)
         save_analysis_results(analysis_results)
         logger.info("District analysis completed and results saved.")
-    except Exception as e:
-        logger.error(f"Analysis failed: {e}")
-        flash(f"Analysis failed: {e}", 'danger')
-        return redirect(url_for('home'))
 
-    # Visualization
+        # Visualization
+        visualization_paths = perform_visualizations(data, best_assignment, fairness_metrics)
+
+        # Versioning
+        version_plan(best_assignment, metadata={'author': 'Nathaniel Schmiedehaus', 'description': 'Initial plan'})
+
+        # Sensitivity Analysis
+        perform_sensitivity_analysis(data, best_assignment)
+        logger.info("Sensitivity analysis completed.")
+
+        flash("Redistricting process completed successfully!", 'success')
+        return render_template('results.html',
+                               fairness_metrics=fairness_metrics,
+                               analysis_results=analysis_results,
+                               comparative_plot_path=visualization_paths['comparative_plot_path'])
+
+    except DataProcessingError as e:
+        return handle_error("Data processing failed", e)
+    except Exception as e:
+        return handle_error("An unexpected error occurred", e)
+
+def perform_visualizations(data, best_assignment, fairness_metrics):
+    """
+    Performs all visualizations and returns paths.
+
+    Args:
+        data: Integrated geospatial and demographic data.
+        best_assignment: The best district assignment solution.
+        fairness_metrics: Fairness metrics for evaluation.
+
+    Returns:
+        Dict containing paths to visualizations.
+    """
     try:
         map_path = visualize_district_map(data, best_assignment)
         fairness_metrics_path = plot_fairness_metrics(fairness_metrics)
@@ -116,35 +119,47 @@ def run_redistricting():
         report_path = generate_explainable_report(fairness_metrics, analysis_results)
         logger.info("Explainable report generated.")
 
+        return {
+            'map_path': map_path,
+            'fairness_metrics_path': fairness_metrics_path,
+            'characteristics_paths': characteristics_paths,
+            'trend_path': trend_path,
+            'comparative_plot_path': comparative_plot_path,
+            'report_path': report_path
+        }
+
     except Exception as e:
         logger.error(f"Visualization failed: {e}")
         flash(f"Visualization failed: {e}", 'danger')
-        return redirect(url_for('home'))
+        raise
 
-    # Versioning
+def version_plan(best_assignment, metadata):
+    """
+    Versions the plan and saves it.
+
+    Args:
+        best_assignment: The best assignment of districts.
+        metadata: Metadata for the plan.
+    """
     try:
-        metadata = {'author': 'Nathaniel Schmiedehaus', 'description': 'Initial plan'}
         plan_path = save_plan(best_assignment, metadata, version='1.0.0')
         logger.info(f"Plan versioned and saved at {plan_path}.")
     except Exception as e:
         logger.error(f"Versioning failed: {e}")
         flash(f"Versioning failed: {e}", 'danger')
-        return redirect(url_for('home'))
+        raise
 
-    # Sensitivity Analysis
-    try:
-        perform_sensitivity_analysis(data, best_assignment)
-        logger.info("Sensitivity analysis completed.")
-    except Exception as e:
-        logger.error(f"Sensitivity analysis failed: {e}")
-        flash(f"Sensitivity analysis failed: {e}", 'danger')
-        return redirect(url_for('home'))
+def handle_error(message, exception):
+    """
+    Handles errors by logging and flashing messages.
 
-    flash("Redistricting process completed successfully!", 'success')
-    return render_template('results.html',
-                           fairness_metrics=fairness_metrics,
-                           analysis_results=analysis_results,
-                           comparative_plot_path=comparative_plot_path)
+    Args:
+        message: Custom error message.
+        exception: The exception raised.
+    """
+    logger.error(f"{message}: {exception}")
+    flash(f"{message}: {exception}", 'danger')
+    return redirect(url_for('home'))
 
 @app.route('/tableau')
 def tableau_dashboard():
