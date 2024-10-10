@@ -4,27 +4,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redistricting Results - Fairmandering</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
-    <style>
-        body { padding-top: 50px; background-color: #f8f9fa; }
-        .container { max-width: 1200px; }
-        .section { margin-bottom: 50px; }
-        iframe { width: 100%; height: 600px; border: none; }
-        .btn-custom {
-            margin-right: 10px;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
 </head>
 <body>
     <div class="container">
-        <h1 class="text-center">Redistricting Results</h1>
-        <hr>
+        <h1 class="text-center mt-5 display-4 animate__animated animate__fadeInDown">Redistricting Results</h1>
+        <hr class="mb-5">
 
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}
-              <div class="alert alert-{{ category }}" role="alert">
+              <div class="alert alert-{{ category }} animate__animated animate__fadeIn" role="alert">
                 {{ message }}
               </div>
             {% endfor %}
@@ -32,55 +26,51 @@
         {% endwith %}
 
         <!-- Fairness Metrics Section -->
-        <div class="section">
+        <div class="section animate__animated animate__fadeIn">
             <h2>Fairness Metrics</h2>
-            <iframe src="{{ url_for('static', filename='fairness_metrics.html') }}"></iframe>
+            <iframe src="{{ url_for('static', filename='fairness_metrics.html') }}" class="iframe-custom"></iframe>
         </div>
 
-        <!-- Population Distribution Section -->
-        <div class="section">
+        <!-- Additional Sections with Fade In Animation -->
+        <div class="section animate__animated animate__fadeIn">
             <h2>Population Distribution Across Districts</h2>
-            <iframe src="{{ url_for('static', filename='district_populations.html') }}"></iframe>
+            <iframe src="{{ url_for('static', filename='district_populations.html') }}" class="iframe-custom"></iframe>
         </div>
 
-        <!-- Median Income Distribution Section -->
-        <div class="section">
+        <div class="section animate__animated animate__fadeIn">
             <h2>Median Income Distribution Across Districts</h2>
-            <iframe src="{{ url_for('static', filename='median_income_distribution.html') }}"></iframe>
+            <iframe src="{{ url_for('static', filename='median_income_distribution.html') }}" class="iframe-custom"></iframe>
         </div>
 
-        <!-- Population Trends Section -->
-        <div class="section">
+        <div class="section animate__animated animate__fadeIn">
             <h2>Population Trends by District</h2>
-            <iframe src="{{ url_for('static', filename='population_trends.html') }}"></iframe>
+            <iframe src="{{ url_for('static', filename='population_trends.html') }}" class="iframe-custom"></iframe>
         </div>
 
-        <!-- Comparative Analysis Section -->
-        <div class="section">
+        <div class="section animate__animated animate__fadeIn">
             <h2>Comparative Analysis of Redistricting Plans</h2>
-            <iframe src="{{ url_for('static', filename='comparative_analysis.html') }}"></iframe>
+            <iframe src="{{ url_for('static', filename='comparative_analysis.html') }}" class="iframe-custom"></iframe>
         </div>
 
-        <!-- Interactive District Map Section -->
-        <div class="section">
+        <div class="section animate__animated animate__fadeIn">
             <h2>Interactive District Map</h2>
-            <iframe src="{{ url_for('static', filename='district_map.html') }}"></iframe>
+            <iframe src="{{ url_for('static', filename='district_map.html') }}" class="iframe-custom"></iframe>
         </div>
 
-        <!-- Explainable Report Section -->
-        <div class="section">
+        <div class="section animate__animated animate__fadeIn">
             <h2>Explainable Report</h2>
-            <iframe src="{{ url_for('static', filename='redistricting_report.html') }}"></iframe>
+            <iframe src="{{ url_for('static', filename='redistricting_report.html') }}" class="iframe-custom"></iframe>
         </div>
 
-        <!-- Action Buttons -->
-        <div class="section text-center">
+        <div class="section text-center mt-5 animate__animated animate__fadeInUp">
             <a href="{{ url_for('home') }}" class="btn btn-secondary btn-custom">Run Again</a>
             <a href="{{ url_for('download_file', filename='redistricting_report.html') }}" class="btn btn-info btn-custom">Download Report</a>
             <a href="{{ url_for('download_file', filename='comparative_analysis.html') }}" class="btn btn-info btn-custom">Download Comparative Analysis</a>
         </div>
     </div>
+
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/custom.js') }}"></script>
 </body>
 </html>
