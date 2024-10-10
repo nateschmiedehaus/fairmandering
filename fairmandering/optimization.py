@@ -29,8 +29,9 @@ class DistrictingProblem(Problem):
         self.data = data
         self.num_districts = num_districts
         num_units = len(data)
+        self.objective_keys = list(Config.OBJECTIVE_WEIGHTS.keys())
         super().__init__(n_var=num_units,
-                         n_obj=len(Config.OBJECTIVE_WEIGHTS),
+                         n_obj=len(self.objective_keys),
                          n_constr=0,
                          xl=0,
                          xu=num_districts - 1,
@@ -48,21 +49,25 @@ class DistrictingProblem(Problem):
         for solution in X:
             assignment = solution.astype(int)
             fairness_metrics = evaluate_fairness(self.data, assignment)
-            # Objective function: Weighted sum of metrics
+            
+            # Objective function: Weighted sum of metrics including newly integrated metrics
             weighted_metrics = [
                 Config.OBJECTIVE_WEIGHTS['population_equality'] * fairness_metrics.get('population_equality', 0),
                 Config.OBJECTIVE_WEIGHTS['compactness'] * self.calculate_compactness(assignment),
                 Config.OBJECTIVE_WEIGHTS['minority_representation'] * fairness_metrics.get('minority_representation', 0),
                 Config.OBJECTIVE_WEIGHTS['political_fairness'] * fairness_metrics.get('political_fairness', 0),
                 Config.OBJECTIVE_WEIGHTS['competitiveness'] * fairness_metrics.get('competitiveness', 0),
-                # Add other weighted metrics as needed
+                Config.OBJECTIVE_WEIGHTS.get('socioeconomic_parity', 0) * fairness_metrics.get('socioeconomic_parity', 0),
+                Config.OBJECTIVE_WEIGHTS.get('environmental_justice', 0) * fairness_metrics.get('environmental_justice', 0),
+                Config.OBJECTIVE_WEIGHTS.get('population_stability', 0) * fairness_metrics.get('population_stability', 0),
+                Config.OBJECTIVE_WEIGHTS.get('income_stability', 0) * fairness_metrics.get('income_stability', 0)
             ]
             objectives.append(weighted_metrics)
         out["F"] = np.array(objectives)
 
     def calculate_compactness(self, assignment: np.ndarray) -> float:
         """
-        Calculates the compactness of the districting plan using Polsby-Popper score.
+        Calculates the compactness of the districting plan using Polsby-Popper and Convex Hull scores.
 
         Args:
             assignment (np.ndarray): Array assigning each unit to a district.
@@ -71,20 +76,32 @@ class DistrictingProblem(Problem):
             float: Average compactness score across all districts.
         """
         compactness_scores = []
+        convex_hull_scores = []
         for district in range(self.num_districts):
             district_units = self.data[assignment == district]
             if district_units.empty:
                 compactness_scores.append(0)
+                convex_hull_scores.append(0)
                 continue
             perimeter = district_units.geometry.length.sum()
             area = district_units.geometry.area.sum()
-            if perimeter == 0:
+            if perimeter == 0 or area == 0:
                 compactness_scores.append(0)
+                convex_hull_scores.append(0)
                 continue
             polsby_popper = (4 * np.pi * area) / (perimeter ** 2)
             compactness_scores.append(polsby_popper)
+
+            # Additional compactness: Convex Hull ratio
+            convex_hull = district_units.unary_union.convex_hull
+            convex_hull_area = convex_hull.area
+            convex_hull_score = area / convex_hull_area
+            convex_hull_scores.append(convex_hull_score)
+
+        # Averaging both metrics for a comprehensive compactness score
         average_compactness = np.mean(compactness_scores) if compactness_scores else 0
-        return average_compactness
+        average_convex_hull = np.mean(convex_hull_scores) if convex_hull_scores else 0
+        return (average_compactness + average_convex_hull) / 2
 
 def optimize_districting(data: 'GeoDataFrame', seeds: List[int] = None) -> Tuple[List[np.ndarray], List[float]]:
     """
