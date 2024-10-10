@@ -1,4 +1,5 @@
-#config.py
+# fairmandering/config.py
+
 import os
 from dotenv import load_dotenv
 import logging
@@ -16,6 +17,7 @@ class Config:
     REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
     REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
     REDIS_DB = int(os.getenv('REDIS_DB', '0'))
+    REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', None)
 
     # Logging configuration
     LOG_FILE = 'fairmandering.log'
@@ -31,10 +33,12 @@ class Config:
     # Census object initialization
     CENSUS = Census(CENSUS_API_KEY)
 
-    # Optimization parameters
-    NSGA3_POPULATION_SIZE = int(os.getenv('NSGA3_POPULATION_SIZE', '200'))
-    NSGA3_GENERATIONS = int(os.getenv('NSGA3_GENERATIONS', '150'))
-    STOCHASTIC_MUTATION_PROB = float(os.getenv('STOCHASTIC_MUTATION_PROB', '0.1'))
+    # Optimization parameters for Genetic Algorithm
+    GA_POPULATION_SIZE = int(os.getenv('GA_POPULATION_SIZE', '200'))
+    GA_GENERATIONS = int(os.getenv('GA_GENERATIONS', '150'))
+    GA_CROSSOVER_RATE = float(os.getenv('GA_CROSSOVER_RATE', '0.9'))
+    GA_MUTATION_RATE = float(os.getenv('GA_MUTATION_RATE', '0.1'))
+    GA_SELECTION_METHOD = os.getenv('GA_SELECTION_METHOD', 'tournament')  # Options: 'tournament', 'roulette', etc.
 
     # Adaptive weighting for objectives
     OBJECTIVE_WEIGHTS = {
@@ -54,10 +58,16 @@ class Config:
     STATE_NAME = os.getenv('STATE_NAME', 'California')
 
     @classmethod
-    def get_num_districts(cls, state_fips):
+    def get_num_districts(cls, state_fips: str) -> int:
         """
         Retrieves the number of legally required districts for a given state using Census data
         and the official apportionment rules.
+
+        Args:
+            state_fips (str): The FIPS code of the state.
+
+        Returns:
+            int: The calculated number of congressional districts.
         """
         try:
             # Retrieve the total population for the state using the Census API
@@ -75,7 +85,7 @@ class Config:
             raise ValueError(f"Error retrieving district data: {e}")
 
     @staticmethod
-    def calculate_districts_from_population(population):
+    def calculate_districts_from_population(population: int) -> int:
         """
         Calculates the number of congressional districts based on the state's population using
         the Huntington-Hill method. This method is consistent with how the U.S. House of Representatives
@@ -120,12 +130,23 @@ class Config:
 
     # Security settings
     ENABLE_ENCRYPTION = os.getenv('ENABLE_ENCRYPTION', 'True') == 'True'
-    ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY', 'your_encryption_key_here')
+    ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY', None)  # No default value for security
+
+    # Flask Configuration for GUI
+    FLASK_HOST = os.getenv('FLASK_HOST', '127.0.0.1')
+    FLASK_PORT = int(os.getenv('FLASK_PORT', '5000'))
+    FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'False') == 'True'
 
     @classmethod
-    def validate(cls):
+    def validate(cls) -> bool:
         """
         Validates the configuration parameters to ensure they are set correctly.
+
+        Returns:
+            bool: True if all validations pass.
+
+        Raises:
+            ValueError: If any configuration parameter is invalid or missing.
         """
         api_keys = {
             'CENSUS_API_KEY': cls.CENSUS_API_KEY,
@@ -138,12 +159,14 @@ class Config:
             if not value:
                 raise ValueError(f"Missing API key: {key}. Please set it in the .env file.")
 
-        if cls.NSGA3_POPULATION_SIZE <= 0:
-            raise ValueError("NSGA3_POPULATION_SIZE must be a positive integer.")
-        if cls.NSGA3_GENERATIONS <= 0:
-            raise ValueError("NSGA3_GENERATIONS must be a positive integer.")
-        if not (0 <= cls.STOCHASTIC_MUTATION_PROB <= 1):
-            raise ValueError("STOCHASTIC_MUTATION_PROB must be between 0 and 1.")
+        if cls.GA_POPULATION_SIZE <= 0:
+            raise ValueError("GA_POPULATION_SIZE must be a positive integer.")
+        if cls.GA_GENERATIONS <= 0:
+            raise ValueError("GA_GENERATIONS must be a positive integer.")
+        if not (0 <= cls.GA_CROSSOVER_RATE <= 1):
+            raise ValueError("GA_CROSSOVER_RATE must be between 0 and 1.")
+        if not (0 <= cls.GA_MUTATION_RATE <= 1):
+            raise ValueError("GA_MUTATION_RATE must be between 0 and 1.")
 
         for weight in cls.OBJECTIVE_WEIGHTS.values():
             if weight < 0:
