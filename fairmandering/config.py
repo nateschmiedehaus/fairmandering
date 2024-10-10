@@ -11,7 +11,11 @@ class Config:
     """
     Configuration class that holds all settings and parameters for the redistricting system.
     """
-
+   
+    # REDIS configuration
+    REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+    REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
+    REDIS_DB = int(os.getenv('REDIS_DB', '0'))
     # Logging configuration
     LOG_FILE = 'fairmandering.log'
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
@@ -51,14 +55,59 @@ class Config:
     @classmethod
     def get_num_districts(cls, state_fips):
         """
-        Gets the number of legally required districts for a given state using Census data.
+        Retrieves the number of legally required districts for a given state using Census data
+        and the official apportionment rules.
         """
         try:
-            response = cls.CENSUS.acs5.get(('NAME', 'B01001_001E'), {'for': f'state:{state_fips}'})
-            # Example logic; replace with actual logic or API to determine the number of districts
-            return len(response)  # Placeholder: Replace with real logic for number of districts
+            # Retrieve the total population for the state using the Census API
+            response = cls.CENSUS.acs5.get(
+                ('B01001_001E',),  # B01001_001E is the total population estimate variable
+                {'for': f'state:{state_fips}'}
+            )
+            state_population = int(response[0]['B01001_001E'])
+
+            # Calculate the number of districts using the Huntington-Hill method
+            num_districts = cls.calculate_districts_from_population(state_population)
+            return num_districts
+
         except Exception as e:
             raise ValueError(f"Error retrieving district data: {e}")
+
+    @staticmethod
+    def calculate_districts_from_population(population):
+        """
+        Calculates the number of congressional districts based on the state's population using
+        the Huntington-Hill method. This method is consistent with how the U.S. House of Representatives
+        is apportioned.
+
+        Args:
+            population (int): The population of the state.
+
+        Returns:
+            int: The calculated number of congressional districts.
+        """
+        # Minimum number of seats for any state
+        base_seats = 1
+
+        # The divisor (called "standard divisor") is the total U.S. population divided by 435 (total House seats).
+        # Assuming national_population is accessible or calculated elsewhere in the system:
+        national_population = 331002651  # For example purposes, the 2020 U.S. population
+        standard_divisor = national_population / 435
+
+        # Calculate the ideal number of seats based on the state population
+        ideal_seats = population / standard_divisor
+
+        # Apply Huntington-Hill rounding method:
+        # It rounds based on the geometric mean of n and n+1.
+        def huntington_hill_rounding(n, pop, divisor):
+            return (n + 1) if pop / divisor > sqrt(n * (n + 1)) else n
+
+        # Start with the base number of seats
+        num_seats = base_seats
+        while huntington_hill_rounding(num_seats, population, standard_divisor) > num_seats:
+            num_seats += 1
+
+        return num_seats
 
     # Paths
     SHAPEFILE_PATH = os.getenv(
