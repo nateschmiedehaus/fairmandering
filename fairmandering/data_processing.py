@@ -172,7 +172,6 @@ class DataProcessor:
                 response.raise_for_status()
                 voting_data = response.json().get('results', [])
 
-                # Process the voting data
                 processed_data = self.process_voting_data(voting_data, year)
                 all_data.append(processed_data)
 
