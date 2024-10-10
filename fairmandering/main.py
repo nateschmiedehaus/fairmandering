@@ -21,7 +21,7 @@ import sys
 from typing import List, Dict
 
 app = Flask(__name__)
-app.secret_key = Config.ENCRYPTION_KEY or 'default_secret_key'  # Ensure to set a secure key in .env
+app.secret_key = Config.ENCRYPTION_KEY
 
 # Configure logging
 logging.basicConfig(
