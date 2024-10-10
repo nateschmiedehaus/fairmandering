@@ -10,199 +10,250 @@ import logging
 from .config import Config
 import numpy as np
 import pandas as pd
+from typing import Dict, Any
+import os
 import json
 
 logger = logging.getLogger(__name__)
 
-def visualize_district_map(data, assignment):
+def visualize_district_map(data: 'GeoDataFrame', assignment: np.ndarray) -> str:
     """
-    Creates an interactive map of the redistricting plan using Plotly.
+    Creates an interactive map of the redistricting plan using Folium and returns the HTML file path.
 
     Args:
-        data (GeoDataFrame): Geospatial data with district assignments.
+        data (GeoDataFrame): The geospatial data with demographic and other attributes.
         assignment (np.ndarray): Array assigning each unit to a district.
 
     Returns:
-        str: JSON representation of the Plotly figure.
+        str: Path to the saved district map HTML file.
     """
-    logger.info("Creating interactive map of the districting plan using Plotly.")
+    logger.info("Creating interactive map of the districting plan.")
     data = data.copy()
     data['district'] = assignment
 
-    fig = px.choropleth_mapbox(
-        data,
-        geojson=data.geometry.__geo_interface__,
-        locations=data.index,
-        color='district',
-        color_continuous_scale='Viridis',
-        mapbox_style="carto-positron",
-        zoom=7,
-        center={"lat": data.geometry.centroid.y.mean(), "lon": data.geometry.centroid.x.mean()},
-        opacity=0.5,
-        labels={'district': 'District'}
-    )
-    fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+    # Create a color palette
+    num_districts = len(np.unique(assignment))
+    colors = px.colors.qualitative.Plotly
+    if num_districts > len(colors):
+        # Extend the color palette if necessary
+        colors = colors * (num_districts // len(colors) + 1)
+    color_dict = {district: colors[district % len(colors)] for district in range(num_districts)}
 
-    # Convert Plotly figure to JSON for embedding in HTML
-    map_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    fig.write_html("district_map.html")
-    logger.info("District map created and saved as 'district_map.html'.")
-    return map_json
+    # Initialize Folium map
+    m = folium.Map(location=[data.geometry.centroid.y.mean(), data.geometry.centroid.x.mean()], zoom_start=7)
 
-def plot_fairness_metrics(fairness_metrics):
+    # Add districts to the map
+    for district in range(num_districts):
+        district_data = data[data['district'] == district]
+        folium.GeoJson(
+            district_data,
+            style_function=lambda feature, color=color_dict[district]: {
+                'fillColor': color,
+                'color': 'black',
+                'weight': 1,
+                'fillOpacity': 0.6,
+            },
+            tooltip=folium.GeoJsonTooltip(fields=['GEOID'], aliases=['GEOID:'])
+        ).add_to(m)
+
+    # Add layer control
+    folium.LayerControl().add_to(m)
+
+    # Save the map
+    map_filename = 'static/district_map.html'
+    m.save(map_filename)
+    logger.info(f"District map saved as '{map_filename}'.")
+    return map_filename
+
+def plot_fairness_metrics(fairness_metrics: Dict[str, float]) -> str:
     """
-    Creates an interactive bar chart of fairness metrics using Plotly.
+    Plots the fairness metrics using Plotly for interactive visualization and returns the HTML file path.
 
     Args:
-        fairness_metrics (dict): Dictionary of fairness metrics.
+        fairness_metrics (Dict[str, float]): Dictionary containing fairness metrics.
 
     Returns:
-        str: JSON representation of the Plotly figure.
+        str: Path to the saved fairness metrics HTML file.
     """
-    logger.info("Creating interactive bar chart for fairness metrics using Plotly.")
+    logger.info("Plotting fairness metrics.")
     metrics = list(fairness_metrics.keys())
     values = list(fairness_metrics.values())
 
-    fig = go.Figure(data=[go.Bar(x=metrics, y=values, marker_color='indianred')])
-    fig.update_layout(
-        title='Fairness Metrics',
-        xaxis_title='Metrics',
-        yaxis_title='Values',
-        template='plotly_white'
+    fig = px.bar(
+        x=values,
+        y=metrics,
+        orientation='h',
+        labels={'x': 'Metric Value', 'y': 'Fairness Metrics'},
+        title='Fairness Metrics Overview',
+        text=values,
+        color=metrics,
+        color_discrete_sequence=px.colors.qualitative.Vivid
     )
 
-    metrics_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    fig.write_html("fairness_metrics.html")
-    logger.info("Fairness metrics plot created and saved as 'fairness_metrics.html'.")
-    return metrics_json
+    fig.update_traces(texttemplate='%{text:.4f}', textposition='inside')
+    fig.update_layout(yaxis={'categoryorder':'total ascending'}, margin=dict(l=150, r=50, t=50, b=50))
 
-def visualize_district_characteristics(data):
+    fairness_metrics_filename = 'static/fairness_metrics.html'
+    fig.write_html(fairness_metrics_filename, full_html=False, include_plotlyjs='cdn')
+    logger.info(f"Fairness metrics plot saved as '{fairness_metrics_filename}'.")
+    return fairness_metrics_filename
+
+def visualize_district_characteristics(data: 'GeoDataFrame') -> Dict[str, str]:
     """
-    Creates interactive visualizations for district characteristics using Plotly.
+    Visualizes characteristics of the districts using Plotly for interactive plots and returns file paths.
 
     Args:
-        data (GeoDataFrame): Geospatial data with district assignments.
+        data (GeoDataFrame): The geospatial data with demographic and other attributes.
 
     Returns:
-        dict: JSON representations of the generated figures.
+        Dict[str, str]: Dictionary containing file paths of the saved visualizations.
     """
-    logger.info("Creating interactive visualizations for district characteristics using Plotly.")
+    logger.info("Visualizing district characteristics.")
+    visualizations = {}
+
     # Population Distribution
-    district_populations = data.groupby('district')['P001001'].sum().reset_index()
-    fig_pop = px.bar(district_populations, x='district', y='P001001',
-                     labels={'P001001': 'Total Population', 'district': 'District'},
-                     title='Population Distribution Across Districts',
-                     color='P001001', color_continuous_scale='Blues')
-    pop_json = json.dumps(fig_pop, cls=plotly.utils.PlotlyJSONEncoder)
-    fig_pop.write_html("district_populations.html")
-
-    # Minority Representation
-    minority_populations = data.groupby('district')['P005004'].sum().reset_index()
-    total_minority_population = data['P005004'].sum()
-    minority_populations['Representation (%)'] = (minority_populations['P005004'] / total_minority_population) * 100
-    fig_min = px.bar(minority_populations, x='district', y='Representation (%)',
-                    labels={'Representation (%)': 'Minority Representation (%)', 'district': 'District'},
-                    title='Minority Representation Across Districts',
-                    color='Representation (%)', color_continuous_scale='Greens')
-    min_json = json.dumps(fig_min, cls=plotly.utils.PlotlyJSONEncoder)
-    fig_min.write_html("minority_representation.html")
-
-    # Political Fairness
-    party_a_votes = data.groupby('district')['votes_party_a'].sum().reset_index()
-    party_b_votes = data.groupby('district')['votes_party_b'].sum().reset_index()
-    merged_votes = pd.merge(party_a_votes, party_b_votes, on='district')
-    merged_votes['Vote Share Party A (%)'] = (merged_votes['votes_party_a'] / (merged_votes['votes_party_a'] + merged_votes['votes_party_b'])) * 100
-    merged_votes['Vote Share Party B (%)'] = 100 - merged_votes['Vote Share Party A (%)']
-
-    fig_pol = go.Figure()
-    fig_pol.add_trace(go.Bar(
-        x=merged_votes['district'],
-        y=merged_votes['Vote Share Party A (%)'],
-        name='Party A',
-        marker_color='blue'
-    ))
-    fig_pol.add_trace(go.Bar(
-        x=merged_votes['district'],
-        y=merged_votes['Vote Share Party B (%)'],
-        name='Party B',
-        marker_color='red'
-    ))
-    fig_pol.update_layout(
-        barmode='stack',
-        title='Political Fairness Across Districts',
-        xaxis_title='District',
-        yaxis_title='Vote Share (%)',
-        template='plotly_white'
+    population_data = data.groupby('district')['P001001'].sum().reset_index()
+    fig_pop = px.bar(
+        population_data,
+        x='district',
+        y='P001001',
+        labels={'district': 'District', 'P001001': 'Total Population'},
+        title='Population Distribution Across Districts',
+        color='district',
+        color_continuous_scale='Viridis'
     )
-    pol_json = json.dumps(fig_pol, cls=plotly.utils.PlotlyJSONEncoder)
-    fig_pol.write_html("political_fairness.html")
+    fig_pop.update_layout(margin=dict(l=50, r=50, t=50, b=50))
+    pop_filename = 'static/district_populations.html'
+    fig_pop.write_html(pop_filename, full_html=False, include_plotlyjs='cdn')
+    visualizations['population_distribution'] = pop_filename
+    logger.info(f"Population distribution plot saved as '{pop_filename}'.")
 
-    return {
-        'population_distribution': pop_json,
-        'minority_representation': min_json,
-        'political_fairness': pol_json
-    }
+    # Median Income Distribution
+    median_income_data = data.groupby('district')['median_income'].median().reset_index()
+    fig_income = px.bar(
+        median_income_data,
+        x='district',
+        y='median_income',
+        labels={'district': 'District', 'median_income': 'Median Income'},
+        title='Median Income Distribution Across Districts',
+        color='median_income',
+        color_continuous_scale='Blues'
+    )
+    fig_income.update_layout(margin=dict(l=50, r=50, t=50, b=50))
+    income_filename = 'static/median_income_distribution.html'
+    fig_income.write_html(income_filename, full_html=False, include_plotlyjs='cdn')
+    visualizations['median_income_distribution'] = income_filename
+    logger.info(f"Median income distribution plot saved as '{income_filename}'.")
 
-def visualize_trend_analysis(data):
+    return visualizations
+
+def visualize_trend_analysis(data: 'GeoDataFrame') -> str:
     """
-    Creates interactive trend analysis visualizations using Plotly.
+    Creates visualizations to showcase trend analysis results using Plotly and returns the HTML file path.
 
     Args:
-        data (GeoDataFrame): Geospatial data with district assignments.
+        data (GeoDataFrame): The geospatial data with demographic and trend attributes.
 
     Returns:
-        str: JSON representation of the Plotly figure.
+        str: Path to the saved population trends HTML file.
     """
-    logger.info("Creating interactive trend analysis visualizations using Plotly.")
-    # Example: Population Trends over the TREND_YEARS
-    trend_data = {}
-    for year in Config.TREND_YEARS:
-        year_column = f'population_trend_{year}'
-        if year_column in data.columns:
-            trend_data[year] = data.groupby('district')[year_column].sum().reset_index()
-        else:
-            logger.warning(f"Trend data for year {year} not found in data columns.")
-
-    fig_trend = go.Figure()
-    for year, df in trend_data.items():
-        fig_trend.add_trace(go.Scatter(
-            x=df['district'],
-            y=df[f'population_trend_{year}'],
-            mode='lines+markers',
-            name=str(year)
-        ))
-
-    fig_trend.update_layout(
-        title='Population Trends Over Years',
-        xaxis_title='District',
-        yaxis_title='Population Trend',
-        template='plotly_white'
+    logger.info("Visualizing trend analysis results.")
+    # Population Trend Mean by District
+    trend_data = data.groupby('district')['population_trend_mean'].mean().reset_index()
+    fig_trend = px.line(
+        trend_data,
+        x='district',
+        y='population_trend_mean',
+        labels={'district': 'District', 'population_trend_mean': 'Average Population Trend'},
+        title='Average Population Trend by District',
+        markers=True
     )
+    fig_trend.update_layout(margin=dict(l=50, r=50, t=50, b=50))
+    trend_filename = 'static/population_trends.html'
+    fig_trend.write_html(trend_filename, full_html=False, include_plotlyjs='cdn')
+    logger.info(f"Population trends plot saved as '{trend_filename}'.")
+    return trend_filename
 
-    trend_json = json.dumps(fig_trend, cls=plotly.utils.PlotlyJSONEncoder)
-    fig_trend.write_html("population_trends.html")
-    logger.info("Trend analysis visualizations created and saved as 'population_trends.html'.")
-    return trend_json
-
-def generate_explainable_report(fairness_metrics, analysis_results):
+def generate_explainable_report(fairness_metrics: Dict[str, float], analysis_results: Dict[int, Dict[str, float]]) -> str:
     """
-    Generates a user-friendly report explaining the redistricting outcomes.
+    Generates a user-friendly HTML report explaining the redistricting outcomes.
 
     Args:
-        fairness_metrics (dict): Fairness metrics of the plan.
-        analysis_results (dict): Detailed analysis results per district.
+        fairness_metrics (Dict[str, float]): Dictionary containing fairness metrics.
+        analysis_results (Dict[int, Dict[str, float]]): Dictionary containing analysis results per district.
 
     Returns:
-        None
+        str: Path to the saved report HTML file.
     """
     logger.info("Generating explainable report.")
-    with open('redistricting_report.txt', 'w') as report:
-        report.write("Fairmandering Redistricting Report\n")
-        report.write("===============================\n\n")
-        report.write("Fairness Metrics:\n")
-        for metric, value in fairness_metrics.items():
-            report.write(f"- {metric.replace('_', ' ').title()}: {value:.4f}\n")
-        report.write("\nAnalysis Results:\n")
-        for key, value in analysis_results.items():
-            report.write(f"- {key.replace('_', ' ').title()}: {value}\n")
-    logger.info("Explainable report generated as 'redistricting_report.txt'.")
+    report_filename = 'static/redistricting_report.html'
+
+    try:
+        with open(report_filename, 'w') as report:
+            report.write("<html><head><title>Redistricting Report</title></head><body>")
+            report.write("<h1>Fairmandering Redistricting Report</h1>")
+            
+            # Fairness Metrics Section
+            report.write("<h2>Fairness Metrics</h2>")
+            report.write("<iframe src='fairness_metrics.html' width='100%' height='400px'></iframe>")
+            
+            # Analysis Results Section
+            report.write("<h2>Analysis Results</h2>")
+            for district, metrics in analysis_results.items():
+                report.write(f"<h3>District {district}</h3><ul>")
+                for metric, value in metrics.items():
+                    report.write(f"<li><strong>{metric.replace('_', ' ').title()}:</strong> {value}</li>")
+                report.write("</ul>")
+            
+            # Visualizations Section
+            report.write("<h2>Visualizations</h2>")
+            report.write("<ul>")
+            report.write("<li><a href='district_map.html' target='_blank'>Interactive District Map</a></li>")
+            report.write("<li><a href='district_populations.html' target='_blank'>Population Distribution</a></li>")
+            report.write("<li><a href='median_income_distribution.html' target='_blank'>Median Income Distribution</a></li>")
+            report.write("<li><a href='population_trends.html' target='_blank'>Population Trends</a></li>")
+            report.write("</ul>")
+            
+            report.write("</body></html>")
+        logger.info(f"Explainable report generated as '{report_filename}'.")
+    except Exception as e:
+        logger.error(f"Failed to generate report: {e}")
+        raise
+
+    return report_filename
+
+def generate_comparative_analysis_plot(plans_metrics: List[Dict[str, float]]) -> str:
+    """
+    Generates a comparative analysis plot for multiple districting plans using Plotly and returns the HTML file path.
+
+    Args:
+        plans_metrics (List[Dict[str, float]]): List of dictionaries containing fairness metrics for each plan.
+
+    Returns:
+        str: Path to the saved comparative analysis HTML file.
+    """
+    logger.info("Generating comparative analysis plot.")
+    # Convert list of metrics to DataFrame
+    df = pd.DataFrame(plans_metrics)
+    df['Plan'] = [f'Plan {i+1}' for i in range(len(plans_metrics))]
+    df = df.set_index('Plan')
+
+    # Melt the DataFrame for Plotly
+    df_melted = df.reset_index().melt(id_vars='Plan', var_name='Metric', value_name='Value')
+
+    fig = px.bar(
+        df_melted,
+        x='Metric',
+        y='Value',
+        color='Plan',
+        barmode='group',
+        title='Comparative Analysis of Redistricting Plans',
+        labels={'Value': 'Metric Value', 'Metric': 'Fairness Metrics'}
+    )
+
+    fig.update_layout(margin=dict(l=50, r=50, t=50, b=50), legend_title_text='Plans')
+
+    comparative_filename = 'static/comparative_analysis.html'
+    fig.write_html(comparative_filename, full_html=False, include_plotlyjs='cdn')
+    logger.info(f"Comparative analysis plot saved as '{comparative_filename}'.")
+    return comparative_filename
