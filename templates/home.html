@@ -7,32 +7,44 @@
     <title>Fairmandering - Redistricting System</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
     <style>
-        body { padding-top: 50px; }
+        body { padding-top: 50px; background-color: #f8f9fa; }
         .container { max-width: 600px; }
+        .card { padding: 20px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 class="text-center">Fairmandering Redistricting System</h1>
-        <form action="{{ url_for('run_redistricting') }}" method="post">
-            <div class="form-group">
-                <label for="state_fips">State FIPS Code</label>
-                <input type="text" class="form-control" id="state_fips" name="state_fips" placeholder="Enter State FIPS Code" required>
-                <small class="form-text text-muted">Default is California (06).</small>
-            </div>
-            <button type="submit" class="btn btn-primary btn-block">Run Redistricting</button>
-        </form>
-        <br>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}" role="alert">
-                {{ message }}
-              </div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
+        <div class="card shadow">
+            <h1 class="text-center">Fairmandering Redistricting System</h1>
+            <p class="text-center text-muted">Generate fair and optimized redistricting plans.</p>
+            <form action="{{ url_for('run_redistricting') }}" method="post">
+                <div class="form-group">
+                    <label for="state_fips">State FIPS Code</label>
+                    <input type="text" class="form-control" id="state_fips" name="state_fips" placeholder="Enter State FIPS Code (e.g., 06 for California)" required>
+                    <small class="form-text text-muted">Default is California (06).</small>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Run Redistricting</button>
+            </form>
+            <br>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                      <span aria-hidden="true">&times;</span>
+                    </button>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+        </div>
     </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+
 </body>
 </html>
-
