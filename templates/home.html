@@ -4,26 +4,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fairmandering - Redistricting System</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
-    <style>
-        body { padding-top: 50px; background-color: #f8f9fa; }
-        .container { max-width: 600px; }
-        .card { padding: 20px; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
 </head>
 <body>
-    <div class="container">
-        <div class="card shadow">
-            <h1 class="text-center">Fairmandering Redistricting System</h1>
-            <p class="text-center text-muted">Generate fair and optimized redistricting plans.</p>
+    <div class="container mt-5">
+        <div class="card shadow-lg section animate__animated animate__fadeInUp">
+            <h1 class="text-center display-4">Fairmandering Redistricting System</h1>
+            <p class="text-center text-muted">Generate fair and optimized redistricting plans using cutting-edge algorithms.</p>
             <form action="{{ url_for('run_redistricting') }}" method="post">
                 <div class="form-group">
                     <label for="state_fips">State FIPS Code</label>
                     <input type="text" class="form-control" id="state_fips" name="state_fips" placeholder="Enter State FIPS Code (e.g., 06 for California)" required>
                     <small class="form-text text-muted">Default is California (06).</small>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block">Run Redistricting</button>
+                <button type="submit" class="btn btn-primary btn-block btn-custom">Run Redistricting</button>
             </form>
             <br>
             {% with messages = get_flashed_messages(with_categories=true) %}
@@ -41,10 +39,9 @@
         </div>
     </div>
 
-    <!-- Bootstrap JS and dependencies -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
-
+    <script src="{{ url_for('static', filename='js/custom.js') }}"></script>
 </body>
 </html>
