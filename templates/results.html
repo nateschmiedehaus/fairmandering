@@ -7,105 +7,76 @@
     <title>Redistricting Results - Fairmandering</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
     <style>
-        body { padding-top: 30px; background-color: #f8f9fa; }
+        body { padding-top: 50px; background-color: #f8f9fa; }
         .container { max-width: 1200px; }
-        .plotly-graph-div { margin-bottom: 50px; }
+        .section { margin-bottom: 50px; }
+        iframe { width: 100%; height: 600px; border: none; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1 class="text-center">Redistricting Results</h1>
         <hr>
+
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}
-              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              <div class="alert alert-{{ category }}" role="alert">
                 {{ message }}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                  <span aria-hidden="true">&times;</span>
-                </button>
               </div>
             {% endfor %}
           {% endif %}
         {% endwith %}
-        
-        <h3>Fairness Metrics</h3>
-        <ul>
-            {% for metric, value in fairness_metrics.items() %}
-                <li><strong>{{ metric.replace('_', ' ').title() }}:</strong> {{ value }}</li>
-            {% endfor %}
-        </ul>
 
-        <h3>Analysis Results</h3>
-        <ul>
-            {% for key, value in analysis_results.items() %}
-                <li><strong>{{ key.replace('_', ' ').title() }}:</strong> {{ value }}</li>
-            {% endfor %}
-        </ul>
-
-        <h3>Ranked Plans</h3>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Plan</th>
-                    <th>Total Score</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for index, row in ranked_plans.iterrows() %}
-                    <tr>
-                        <td>{{ index }}</td>
-                        <td>{{ row['total_score'] }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <h3>Visualizations</h3>
-        <div class="plotly-graph-div">
-            <h4>District Map</h4>
-            {{ district_map | safe }}
-        </div>
-        <div class="plotly-graph-div">
-            <h4>Fairness Metrics</h4>
-            {{ fairness_metrics_plot | safe }}
-        </div>
-        <div class="plotly-graph-div">
-            <h4>Population Distribution</h4>
-            {{ district_populations_plot | safe }}
-        </div>
-        <div class="plotly-graph-div">
-            <h4>Minority Representation</h4>
-            {{ minority_representation_plot | safe }}
-        </div>
-        <div class="plotly-graph-div">
-            <h4>Political Fairness</h4>
-            {{ political_fairness_plot | safe }}
-        </div>
-        <div class="plotly-graph-div">
-            <h4>Population Trends</h4>
-            {{ population_trends_plot | safe }}
+        <!-- Fairness Metrics Section -->
+        <div class="section">
+            <h2>Fairness Metrics</h2>
+            <iframe src="{{ url_for('static', filename='fairness_metrics.html') }}"></iframe>
         </div>
 
-        <div class="mb-3">
-            <a href="{{ url_for('download_file', filename='district_map.html') }}" class="btn btn-info">Download District Map</a>
-            <a href="{{ url_for('download_file', filename='fairness_metrics.html') }}" class="btn btn-info">Download Fairness Metrics Plot</a>
-            <a href="{{ url_for('download_file', filename='district_populations.html') }}" class="btn btn-info">Download Population Distribution</a>
-            <a href="{{ url_for('download_file', filename='minority_representation.html') }}" class="btn btn-info">Download Minority Representation Plot</a>
-            <a href="{{ url_for('download_file', filename='political_fairness.html') }}" class="btn btn-info">Download Political Fairness Plot</a>
-            <a href="{{ url_for('download_file', filename='population_trends.html') }}" class="btn btn-info">Download Population Trends Plot</a>
-            <a href="{{ url_for('download_file', filename='redistricting_report.txt') }}" class="btn btn-info">Download Report</a>
+        <!-- Population Distribution Section -->
+        <div class="section">
+            <h2>Population Distribution Across Districts</h2>
+            <iframe src="{{ url_for('static', filename='district_populations.html') }}"></iframe>
         </div>
 
-        <a href="{{ url_for('home') }}" class="btn btn-secondary">Run Again</a>
+        <!-- Median Income Distribution Section -->
+        <div class="section">
+            <h2>Median Income Distribution Across Districts</h2>
+            <iframe src="{{ url_for('static', filename='median_income_distribution.html') }}"></iframe>
+        </div>
+
+        <!-- Population Trends Section -->
+        <div class="section">
+            <h2>Population Trends by District</h2>
+            <iframe src="{{ url_for('static', filename='population_trends.html') }}"></iframe>
+        </div>
+
+        <!-- Comparative Analysis Section -->
+        <div class="section">
+            <h2>Comparative Analysis of Redistricting Plans</h2>
+            <iframe src="{{ url_for('static', filename='comparative_analysis.html') }}"></iframe>
+        </div>
+
+        <!-- Interactive District Map Section -->
+        <div class="section">
+            <h2>Interactive District Map</h2>
+            <iframe src="{{ url_for('static', filename='district_map.html') }}"></iframe>
+        </div>
+
+        <!-- Explainable Report Section -->
+        <div class="section">
+            <h2>Explainable Report</h2>
+            <iframe src="{{ url_for('static', filename='redistricting_report.html') }}"></iframe>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="section text-center">
+            <a href="{{ url_for('home') }}" class="btn btn-secondary">Run Again</a>
+            <a href="{{ url_for('download_file', filename='redistricting_report.html') }}" class="btn btn-info">Download Report</a>
+        </div>
     </div>
-
-    <!-- Bootstrap JS and dependencies -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
-
-    <!-- Plotly JS -->
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
