@@ -192,3 +192,12 @@ class Config:
             raise ValueError("ENCRYPTION_KEY must be set if encryption is enabled.")
 
         return True
+
+    @classmethod
+    def validate(cls):
+        required_vars = ['TABLEAU_SERVER_URL', 'FLASK_SECRET_KEY']
+        for var in required_vars:
+            if not getattr(cls, var):
+                raise ValueError(f"Missing required environment variable: {var}")
+
+Config.validate()
