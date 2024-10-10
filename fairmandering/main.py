@@ -1,3 +1,5 @@
+#main.py
+
 import logging
 from .config import Config
 from .data_processing import DataProcessor, DataProcessingError
