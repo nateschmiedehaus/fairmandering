@@ -11,6 +11,9 @@
         .container { max-width: 1200px; }
         .section { margin-bottom: 50px; }
         iframe { width: 100%; height: 600px; border: none; }
+        .btn-custom {
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body>
@@ -72,8 +75,9 @@
 
         <!-- Action Buttons -->
         <div class="section text-center">
-            <a href="{{ url_for('home') }}" class="btn btn-secondary">Run Again</a>
-            <a href="{{ url_for('download_file', filename='redistricting_report.html') }}" class="btn btn-info">Download Report</a>
+            <a href="{{ url_for('home') }}" class="btn btn-secondary btn-custom">Run Again</a>
+            <a href="{{ url_for('download_file', filename='redistricting_report.html') }}" class="btn btn-info btn-custom">Download Report</a>
+            <a href="{{ url_for('download_file', filename='comparative_analysis.html') }}" class="btn btn-info btn-custom">Download Comparative Analysis</a>
         </div>
     </div>
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
