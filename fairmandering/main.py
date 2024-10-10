@@ -60,6 +60,7 @@ def main():
     # Get the number of districts dynamically from the Census API
     try:
         num_districts = Config.get_num_districts(state_fips)
+        logger.info(f"Number of districts for state FIPS {state_fips}: {num_districts}")
     except Exception as e:
         logger.error(f"Failed to get the number of districts: {e}")
         sys.exit(1)
@@ -74,4 +75,53 @@ def main():
 
     # Optimization
     try:
-        district_assignments, _ = optimize_d
+        district_assignments, _ = optimize_districting(data, seeds=[1, 2, 3, 4, 5])
+        best_assignment = district_assignments[0]  # For simplicity, use the first solution
+    except Exception as e:
+        logger.error(f"Optimization failed: {e}")
+        sys.exit(1)
+
+    # Fairness Evaluation
+    try:
+        fairness_metrics = evaluate_fairness(data, best_assignment)
+    except Exception as e:
+        logger.error(f"Fairness evaluation failed: {e}")
+        sys.exit(1)
+
+    # Analysis
+    try:
+        analysis_results = analyze_districts(data)
+        save_analysis_results(analysis_results)
+    except Exception as e:
+        logger.error(f"Analysis failed: {e}")
+        sys.exit(1)
+
+    # Visualization
+    try:
+        visualize_district_map(data, best_assignment)
+        plot_fairness_metrics(fairness_metrics)
+        visualize_district_characteristics(data)
+        visualize_trend_analysis(data)
+        generate_explainable_report(fairness_metrics, analysis_results)
+    except Exception as e:
+        logger.error(f"Visualization failed: {e}")
+        sys.exit(1)
+
+    # Versioning
+    metadata = {'author': 'Your Name', 'description': 'Initial plan'}
+    save_plan(best_assignment, metadata, version='1.0.0')
+
+    # Sensitivity Analysis
+    perform_sensitivity_analysis(data, best_assignment)
+
+    # Ensemble Analysis
+    ensemble = generate_ensemble_plans(data, num_plans=5)
+    metrics_df = compare_ensemble_plans(data, ensemble)
+    weights = Config.OBJECTIVE_WEIGHTS
+    ranked_plans = rank_plans(metrics_df, weights)
+
+    logger.info("Redistricting process completed successfully.")
+
+if __name__ == "__main__":
+    args = parse_arguments()
+    main()
