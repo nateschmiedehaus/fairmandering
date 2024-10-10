@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tableau Dashboard - Fairmandering</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script type='text/javascript' src='https://public.tableau.com/javascripts/api/tableau-2.0.0.min.js'></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white shadow-md rounded-lg p-6 max-w-4xl w-full">
+        <h1 class="text-3xl font-bold text-gray-800 text-center mb-6">Interactive Tableau Dashboard</h1>
+        <div id="tableauViz"></div>
+    </div>
+
+    <script>
+        var placeholderDiv = document.getElementById('tableauViz');
+        var url = 'https://public.tableau.com/views/YourDashboardLink';
+        var options = {
+            width: '100%',
+            height: '800px',
+            hideTabs: true,
+            hideToolbar: true
+        };
+
+        var viz = new tableau.Viz(placeholderDiv, url, options);
+    </script>
+</body>
+</html>
