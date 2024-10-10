@@ -44,8 +44,6 @@
         </div>
     </div>
 
-    <!-- Embedding D3.js and Plotly scripts -->
-    <script src="https://d3js.org/d3.v6.min.js"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="{{ url_for('static', filename='js/custom.js') }}"></script>
     <script>
@@ -53,11 +51,15 @@
         var fairnessMetricsData = {
             x: ['Population Equality', 'Minority Representation', 'Political Fairness'],
             y: [0.9, 0.8, 0.75],
-            type: 'bar'
+            type: 'bar',
+            marker: {
+                color: ['#1f77b4', '#ff7f0e', '#2ca02c']
+            }
         };
         Plotly.newPlot('fairnessMetricsChart', [fairnessMetricsData]);
 
-        // Initialize Population Distribution Chart with D3.js
+        // Additional D3.js visuals
+        // Example visualization: Bar chart with D3.js for population distribution
         d3.select('#populationDistributionChart')
             .append('svg')
             .attr('width', '100%')
