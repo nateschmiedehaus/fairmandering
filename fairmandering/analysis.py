@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from .config import Config
 from .optimization import optimize_districting
 from .fairness_evaluation import evaluate_fairness
+from .data_processing import DataProcessor 
+
 
 logger = logging.getLogger(__name__)
 
@@ -78,14 +80,16 @@ def perform_sensitivity_analysis(data, assignment):
 
     for weight in weights:
         Config.OBJECTIVE_WEIGHTS['population_equality'] = weight
-        assignments, _ = optimize_districting(data)
+        # Update: Adjustments to match optimized data processing integration
+        processor = DataProcessor(Config.STATE_FIPS, Config.STATE_NAME)
+        processed_data = processor.integrate_data()  # Fetch processed and integrated data
+        assignments, _ = optimize_districting(processed_data)
         best_assignment = assignments[0]
-        fairness_metrics = evaluate_fairness(data, best_assignment)
+        fairness_metrics = evaluate_fairness(processed_data, best_assignment)
         deviations.append(fairness_metrics['population_equality'])
 
     Config.OBJECTIVE_WEIGHTS['population_equality'] = original_weight
 
-    # Plotting the sensitivity analysis
     plt.figure(figsize=(10, 6))
     plt.plot(weights, deviations, marker='o')
     plt.xlabel('Population Equality Weight')
@@ -95,7 +99,7 @@ def perform_sensitivity_analysis(data, assignment):
     plt.savefig('sensitivity_analysis.png')
     plt.close()
     logger.info("Sensitivity analysis completed and saved as 'sensitivity_analysis.png'.")
-
+    
 def compare_ensemble_plans(data, ensemble):
     """
     Compares and ranks ensemble of redistricting plans.
