@@ -1,1 +1,38 @@
+<!-- fairmandering/templates/home.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fairmandering - Redistricting System</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <style>
+        body { padding-top: 50px; }
+        .container { max-width: 600px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center">Fairmandering Redistricting System</h1>
+        <form action="{{ url_for('run_redistricting') }}" method="post">
+            <div class="form-group">
+                <label for="state_fips">State FIPS Code</label>
+                <input type="text" class="form-control" id="state_fips" name="state_fips" placeholder="Enter State FIPS Code" required>
+                <small class="form-text text-muted">Default is California (06).</small>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Run Redistricting</button>
+        </form>
+        <br>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}" role="alert">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+    </div>
+</body>
+</html>
 
